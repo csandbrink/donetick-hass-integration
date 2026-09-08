@@ -213,7 +213,7 @@ class DonetickTodoListBase(CoordinatorEntity, TodoListEntity):
                     _LOGGER.debug("Task %s is recurring, updating next due date", res.name)
                     item.status = TodoItemStatus.NEEDS_ACTION
                     item.due = res.next_due_date
-                    self.async_update_todo_item(item)
+                    await self.async_update_todo_item(item)
             else:
                 # Update task properties (summary, description, due date)
                 _LOGGER.debug("Updating task %d properties", task_id)

@@ -60,6 +60,17 @@ class TodoItemStatus:
     """Todo status test stub."""
 
 
+class EntityRegistry:
+    """Entity registry test stub; no entities are registered by default."""
+
+    def async_get(self, entity_id: str) -> None:
+        return None
+
+
+def _entity_registry_async_get(hass: Any) -> EntityRegistry:
+    return EntityRegistry()
+
+
 def _string(value: Any) -> str:
     if not isinstance(value, str):
         raise TypeError("value must be a string")
@@ -83,6 +94,7 @@ aiohttp_client = cast(Any, types.ModuleType("homeassistant.helpers.aiohttp_clien
 update_coordinator = cast(
     Any, types.ModuleType("homeassistant.helpers.update_coordinator")
 )
+entity_registry = cast(Any, types.ModuleType("homeassistant.helpers.entity_registry"))
 components = cast(Any, types.ModuleType("homeassistant.components"))
 todo = cast(Any, types.ModuleType("homeassistant.components.todo"))
 
@@ -95,6 +107,7 @@ config_validation.string = _string
 config_validation.ensure_list = _ensure_list
 aiohttp_client.async_get_clientsession = lambda hass: None
 update_coordinator.DataUpdateCoordinator = DataUpdateCoordinator
+entity_registry.async_get = _entity_registry_async_get
 todo.TodoItem = TodoItem
 todo.TodoItemStatus = TodoItemStatus
 
@@ -107,6 +120,7 @@ homeassistant.components = components
 helpers.config_validation = config_validation
 helpers.aiohttp_client = aiohttp_client
 helpers.update_coordinator = update_coordinator
+helpers.entity_registry = entity_registry
 components.todo = todo
 
 for name, module in {
@@ -119,6 +133,7 @@ for name, module in {
     "homeassistant.helpers.config_validation": config_validation,
     "homeassistant.helpers.aiohttp_client": aiohttp_client,
     "homeassistant.helpers.update_coordinator": update_coordinator,
+    "homeassistant.helpers.entity_registry": entity_registry,
     "homeassistant.components": components,
     "homeassistant.components.todo": todo,
 }.items():
