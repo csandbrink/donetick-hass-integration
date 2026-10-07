@@ -1,6 +1,7 @@
 """The Donetick integration."""
 import logging
 from datetime import timedelta
+from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
@@ -26,6 +27,7 @@ from .const import (
     DEFAULT_REFRESH_INTERVAL,
     DOMAIN,
 )
+from .model import DonetickMember
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.TODO, Platform.SENSOR, Platform.SWITCH, Platform.NUMBER, Platform.TEXT, Platform.CALENDAR]
@@ -257,8 +259,8 @@ async def async_complete_chore_service(hass: HomeAssistant, call: ServiceCall) -
             f"Donetick config entry {entry.entry_id} is not loaded"
         ) from err
 
-    _validate_circle_members(
-        config.get("circle_members"),
+    await _validate_circle_members(
+        config,
         completed_by=call.data["completed_by"],
         assigned_to=call.data.get("assigned_to"),
     )
@@ -329,8 +331,8 @@ async def async_create_chore_service(hass: HomeAssistant, call: ServiceCall) -> 
     except ValueError as err:
         raise ServiceValidationError(f"Invalid Donetick chore: {err}") from err
 
-    _validate_circle_members(
-        config.get("circle_members"),
+    await _validate_circle_members(
+        config,
         assigned_to=call.data.get("assigned_to"),
         assignee_ids=call.data.get("assignee_ids"),
     )
@@ -353,23 +355,58 @@ async def async_create_chore_service(hass: HomeAssistant, call: ServiceCall) -> 
     )
 
 
-def _validate_circle_members(circle_members, **fields) -> None:
-    """Reject user IDs that are not active members of the Donetick circle.
-
-    Field values may be a single user ID or a list of IDs. The check is
-    skipped when the member list could not be fetched at setup, leaving
-    Donetick as the only authority in that case.
-    """
-    if not circle_members:
-        return
+def _find_unknown_member(
+    circle_members: list[DonetickMember], fields: dict[str, int | list[int] | None]
+) -> tuple[str, int] | None:
+    """Return the first (field, user ID) that is not an active circle member."""
     active_ids = {member.user_id for member in circle_members if member.is_active}
     for field, value in fields.items():
         user_ids = value if isinstance(value, list) else [value]
         for user_id in user_ids:
             if user_id is not None and user_id not in active_ids:
-                raise ServiceValidationError(
-                    f"{field} {user_id} is not an active Donetick circle member"
-                )
+                return field, user_id
+    return None
+
+
+async def _validate_circle_members(
+    config: dict[str, Any], **fields: int | list[int] | None
+) -> None:
+    """Reject user IDs that are not active members of the Donetick circle.
+
+    Field values may be a single user ID or a list of IDs. The member list in
+    ``config["circle_members"]`` is cached at setup; when an ID is unknown it
+    is re-fetched once so members who joined later are accepted. The check is
+    skipped when no member list is available, leaving Donetick as the only
+    authority in that case.
+    """
+    circle_members = config.get("circle_members")
+    if not circle_members:
+        return
+    unknown = _find_unknown_member(circle_members, fields)
+    if unknown is None:
+        return
+
+    try:
+        circle_members = await config["client"].async_get_circle_members()
+    except Exception as err:
+        _LOGGER.warning(
+            "Could not refresh Donetick circle members to validate %s %s: %s",
+            unknown[0], unknown[1], err,
+        )
+        return
+    if not circle_members:
+        _LOGGER.warning(
+            "Donetick returned no circle members; skipping validation of %s %s",
+            unknown[0], unknown[1],
+        )
+        return
+    config["circle_members"] = circle_members
+
+    unknown = _find_unknown_member(circle_members, fields)
+    if unknown is not None:
+        raise ServiceValidationError(
+            f"{unknown[0]} {unknown[1]} is not an active Donetick circle member"
+        )
 
 
 async def async_update_task_service(hass: HomeAssistant, call: ServiceCall) -> None:
