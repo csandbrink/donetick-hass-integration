@@ -208,12 +208,9 @@ class DonetickTodoListBase(CoordinatorEntity, TodoListEntity):
                 # Determine who should complete this task using smart logic
                 completed_by = await self._get_completion_user_id(client, item, context)
                 
-                res = await client.async_complete_task(task_id, completed_by)
-                if res.frequency_type != "once":
-                    _LOGGER.debug("Task %s is recurring, updating next due date", res.name)
-                    item.status = TodoItemStatus.NEEDS_ACTION
-                    item.due = res.next_due_date
-                    await self.async_update_todo_item(item)
+                # Donetick schedules the next occurrence of recurring chores on
+                # completion; the coordinator refresh below picks it up.
+                await client.async_complete_task(task_id, completed_by)
             else:
                 # Update task properties (summary, description, due date)
                 _LOGGER.debug("Updating task %d properties", task_id)

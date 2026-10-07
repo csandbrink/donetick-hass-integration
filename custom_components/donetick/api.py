@@ -274,14 +274,12 @@ class DonetickApiClient:
                 json={"completedBy": completed_by},
                 timeout=cast(Any, API_TIMEOUT),
             ) as response:
+                # The response body is not needed; a non-JSON body after a
+                # successful completion must not be reported as a failure.
                 response.raise_for_status()
-                await response.json()
         except aiohttp.ClientError as err:
             _LOGGER.error("Error completing chore in Donetick: %s", err)
             raise
-        except (KeyError, TypeError, json.JSONDecodeError) as err:
-            _LOGGER.error("Error parsing Donetick complete chore response: %s", err)
-            raise ValueError("Unexpected Donetick complete chore response") from err
 
     async def async_update_task(self, task_id: int, name: str = None, description: str = None, due_date: str = None) -> DonetickTask:
         """Update an existing task"""

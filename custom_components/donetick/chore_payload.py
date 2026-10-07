@@ -99,8 +99,12 @@ def _validate_assignment(
 
 def build_create_chore_payload(data: Mapping[str, Any]) -> dict[str, Any]:
     """Build a Donetick full-API create payload from service data."""
+    if not str(data.get("name", "")).strip():
+        raise ValueError("name must not be blank")
+
     assigned_to = data.get("assigned_to")
-    assignee_ids = list(data.get("assignee_ids", []))
+    # Drop duplicate IDs while keeping the caller's order.
+    assignee_ids = list(dict.fromkeys(data.get("assignee_ids", [])))
     # Treat assigned_to on its own as a one-person assignment before validation.
     if assigned_to is not None and "assignee_ids" not in data:
         assignee_ids = [assigned_to]

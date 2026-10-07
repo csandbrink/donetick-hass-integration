@@ -6,7 +6,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -38,6 +38,15 @@ SERVICE_CREATE_CHORE = "create_chore"
 SERVICE_UPDATE_TASK = "update_task"
 SERVICE_DELETE_TASK = "delete_task"
 SERVICE_SKIP_TASK = "skip_task"
+SERVICE_NAMES = (
+    SERVICE_COMPLETE_TASK,
+    SERVICE_COMPLETE_CHORE,
+    SERVICE_CREATE_TASK,
+    SERVICE_CREATE_CHORE,
+    SERVICE_UPDATE_TASK,
+    SERVICE_DELETE_TASK,
+    SERVICE_SKIP_TASK,
+)
 
 COMPLETE_TASK_SCHEMA = vol.Schema({
     vol.Required("task_id"): vol.Coerce(int),
@@ -200,14 +209,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         skip_task_handler,
         schema=SKIP_TASK_SCHEMA,
     )
-    _LOGGER.debug("Registered services: %s.%s, %s.%s, %s.%s, %s.%s, %s.%s",
-                  DOMAIN, SERVICE_COMPLETE_TASK, DOMAIN, SERVICE_CREATE_TASK,
-                  DOMAIN, SERVICE_UPDATE_TASK, DOMAIN, SERVICE_DELETE_TASK,
-                  DOMAIN, SERVICE_SKIP_TASK)
-    
+    _LOGGER.debug("Registered services: %s",
+                  ", ".join(f"{DOMAIN}.{name}" for name in SERVICE_NAMES))
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    entry.add_update_listener(async_reload_entry)
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     
     return True
 
@@ -218,29 +225,10 @@ async def async_complete_task_service(hass: HomeAssistant, call: ServiceCall) ->
     config_entry_id = call.data.get("config_entry_id")
     
     # Find the config entry to use
-    entry = None
-    if config_entry_id:
-        # Check if it's a config entry ID
-        entry = hass.config_entries.async_get_entry(config_entry_id)
-        
-        # If not found, check if it's an entity ID and extract config entry from it
-        if not entry and config_entry_id.startswith("todo."):
-            entity_registry = er.async_get(hass)
-            entity_entry = entity_registry.async_get(config_entry_id)
-            if entity_entry:
-                entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
-        
-        if not entry:
-            _LOGGER.error("Config entry not found for: %s", config_entry_id)
-            return
-    else:
-        # Use the first Donetick integration if no specific entry provided
-        entries = [entry for entry in hass.config_entries.async_entries(DOMAIN)]
-        if not entries:
-            _LOGGER.error("No Donetick integration found")
-            return
-        entry = entries[0]
-    
+    entry = await _get_config_entry(hass, config_entry_id)
+    if not entry:
+        return
+
     # Get API client and coordinator
     config = hass.data[DOMAIN][entry.entry_id]
     client = config["client"]
@@ -268,6 +256,12 @@ async def async_complete_chore_service(hass: HomeAssistant, call: ServiceCall) -
         raise HomeAssistantError(
             f"Donetick config entry {entry.entry_id} is not loaded"
         ) from err
+
+    _validate_circle_members(
+        config.get("circle_members"),
+        completed_by=call.data["completed_by"],
+        assigned_to=call.data.get("assigned_to"),
+    )
 
     try:
         await config["client"].async_complete_chore(
@@ -332,6 +326,16 @@ async def async_create_chore_service(hass: HomeAssistant, call: ServiceCall) -> 
 
     try:
         payload = build_create_chore_payload(call.data)
+    except ValueError as err:
+        raise ServiceValidationError(f"Invalid Donetick chore: {err}") from err
+
+    _validate_circle_members(
+        config.get("circle_members"),
+        assigned_to=call.data.get("assigned_to"),
+        assignee_ids=call.data.get("assignee_ids"),
+    )
+
+    try:
         chore_id = await client.async_create_chore(payload)
     except Exception as err:
         raise HomeAssistantError(f"Failed to create Donetick chore: {err}") from err
@@ -347,6 +351,25 @@ async def async_create_chore_service(hass: HomeAssistant, call: ServiceCall) -> 
     _LOGGER.info(
         "Chore '%s' created successfully with ID %d", payload["name"], chore_id
     )
+
+
+def _validate_circle_members(circle_members, **fields) -> None:
+    """Reject user IDs that are not active members of the Donetick circle.
+
+    Field values may be a single user ID or a list of IDs. The check is
+    skipped when the member list could not be fetched at setup, leaving
+    Donetick as the only authority in that case.
+    """
+    if not circle_members:
+        return
+    active_ids = {member.user_id for member in circle_members if member.is_active}
+    for field, value in fields.items():
+        user_ids = value if isinstance(value, list) else [value]
+        for user_id in user_ids:
+            if user_id is not None and user_id not in active_ids:
+                raise ServiceValidationError(
+                    f"{field} {user_id} is not an active Donetick circle member"
+                )
 
 
 async def async_update_task_service(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -429,12 +452,15 @@ async def _get_config_entry(hass: HomeAssistant, config_entry_id: str = None) ->
     if config_entry_id:
         # Check if it's a config entry ID
         entry = hass.config_entries.async_get_entry(config_entry_id)
-        
+        if entry and entry.domain != DOMAIN:
+            entry = None
+
         # If not found, check if it's an entity ID and extract config entry from it
         if not entry and config_entry_id.startswith("todo."):
             entity_registry = er.async_get(hass)
             entity_entry = entity_registry.async_get(config_entry_id)
-            if entity_entry:
+            # Only accept todo entities that belong to this integration.
+            if entity_entry and entity_entry.platform == DOMAIN:
                 entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
         
         if not entry:
@@ -458,16 +484,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
         # Remove services if this is the last config entry
         if not hass.data[DOMAIN]:
-            service_names = (
-                SERVICE_COMPLETE_TASK,
-                SERVICE_COMPLETE_CHORE,
-                SERVICE_CREATE_TASK,
-                SERVICE_CREATE_CHORE,
-                SERVICE_UPDATE_TASK,
-                SERVICE_DELETE_TASK,
-                SERVICE_SKIP_TASK,
-            )
-            for service_name in service_names:
+            for service_name in SERVICE_NAMES:
                 if hass.services.has_service(DOMAIN, service_name):
                     hass.services.async_remove(DOMAIN, service_name)
             _LOGGER.debug("Removed all Donetick services")
