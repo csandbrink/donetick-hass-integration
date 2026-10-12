@@ -149,6 +149,18 @@ entity_registry = cast(Any, types.ModuleType("homeassistant.helpers.entity_regis
 entity_platform = cast(Any, types.ModuleType("homeassistant.helpers.entity_platform"))
 components = cast(Any, types.ModuleType("homeassistant.components"))
 todo = cast(Any, types.ModuleType("homeassistant.components.todo"))
+frontend = cast(Any, types.ModuleType("homeassistant.components.frontend"))
+http = cast(Any, types.ModuleType("homeassistant.components.http"))
+
+
+class StaticPathConfig:
+    """Static path registration test stub."""
+
+    def __init__(self, url_path: str, path: str, cache_headers: bool) -> None:
+        self.url_path = url_path
+        self.path = path
+        self.cache_headers = cache_headers
+
 
 core.HomeAssistant = HomeAssistant
 core.ServiceCall = ServiceCall
@@ -158,6 +170,7 @@ exceptions.HomeAssistantError = HomeAssistantError
 exceptions.ServiceValidationError = ServiceValidationError
 config_validation.string = _string
 config_validation.ensure_list = _ensure_list
+config_validation.boolean = bool
 aiohttp_client.async_get_clientsession = lambda hass: None
 update_coordinator.DataUpdateCoordinator = DataUpdateCoordinator
 update_coordinator.CoordinatorEntity = CoordinatorEntity
@@ -167,6 +180,8 @@ todo.TodoItem = TodoItem
 todo.TodoItemStatus = TodoItemStatus
 todo.TodoListEntity = TodoListEntity
 todo.TodoListEntityFeature = TodoListEntityFeature
+frontend.add_extra_js_url = lambda hass, url: None
+http.StaticPathConfig = StaticPathConfig
 
 homeassistant.core = core
 homeassistant.config_entries = config_entries
@@ -180,6 +195,8 @@ helpers.update_coordinator = update_coordinator
 helpers.entity_registry = entity_registry
 helpers.entity_platform = entity_platform
 components.todo = todo
+components.frontend = frontend
+components.http = http
 
 for name, module in {
     "homeassistant": homeassistant,
@@ -195,5 +212,7 @@ for name, module in {
     "homeassistant.helpers.entity_platform": entity_platform,
     "homeassistant.components": components,
     "homeassistant.components.todo": todo,
+    "homeassistant.components.frontend": frontend,
+    "homeassistant.components.http": http,
 }.items():
     sys.modules[name] = module

@@ -67,6 +67,18 @@ class FakeHass:
         self.data: dict[str, Any] = {}
         self.config_entries = FakeConfigEntries(entry, *other_entries)
         self.services = FakeServices()
+        self.http = FakeHttp()
+
+    async def async_add_executor_job(self, func: Any, *args: Any) -> Any:
+        return func(*args)
+
+
+class FakeHttp:
+    def __init__(self) -> None:
+        self.static_paths: list[Any] = []
+
+    async def async_register_static_paths(self, configs: list[Any]) -> None:
+        self.static_paths.extend(configs)
 
 
 class RecordingClient:
@@ -168,7 +180,7 @@ async def test_complete_chore_service_rejects_unloaded_config_entry() -> None:
     entry = FakeConfigEntry()
     hass = FakeHass(entry)
 
-    with pytest.raises(HomeAssistantError, match="is not loaded") as error:
+    with pytest.raises(HomeAssistantError, match="No matching Donetick config entry"):
         await integration.async_complete_chore_service(
             hass,
             SimpleNamespace(
@@ -179,8 +191,6 @@ async def test_complete_chore_service_rejects_unloaded_config_entry() -> None:
                 }
             ),
         )
-
-    assert isinstance(error.value.__cause__, KeyError)
 
 
 async def test_complete_chore_service_reports_remote_success_when_refresh_fails() -> None:
@@ -263,7 +273,7 @@ async def test_create_chore_service_rejects_unloaded_config_entry() -> None:
     entry = FakeConfigEntry()
     hass = FakeHass(entry)
 
-    with pytest.raises(HomeAssistantError, match="is not loaded") as error:
+    with pytest.raises(HomeAssistantError, match="No matching Donetick config entry"):
         await integration.async_create_chore_service(
             hass,
             SimpleNamespace(
@@ -273,8 +283,6 @@ async def test_create_chore_service_rejects_unloaded_config_entry() -> None:
                 }
             ),
         )
-
-    assert isinstance(error.value.__cause__, KeyError)
 
 
 async def test_create_chore_service_reports_create_success_when_refresh_fails() -> None:
@@ -505,6 +513,7 @@ async def test_config_entry_lookup_ignores_foreign_todo_entities(
 ) -> None:
     entry = FakeConfigEntry()
     hass = FakeHass(entry)
+    hass.data[integration.DOMAIN] = {entry.entry_id: {}}
     registered_entities["todo.shopping_list"] = SimpleNamespace(
         platform="shopping_list", config_entry_id=entry.entry_id
     )
@@ -520,6 +529,7 @@ async def test_config_entry_lookup_rejects_foreign_config_entry() -> None:
     entry = FakeConfigEntry()
     foreign = SimpleNamespace(entry_id="entry-2", domain="shopping_list")
     hass = FakeHass(entry, foreign)
+    hass.data[integration.DOMAIN] = {entry.entry_id: {}}
 
     assert await integration._get_config_entry(hass, "entry-2") is None
     assert await integration._get_config_entry(hass, entry.entry_id) is entry

@@ -24,6 +24,9 @@ class RecordingTaskClient:
             next_due_date=datetime(2026, 10, 14, 18, 0, tzinfo=timezone.utc),
         )
 
+    async def async_get_tasks(self) -> list[Any]:
+        return [SimpleNamespace(id=5, assigned_to=3, is_active=True)]
+
     async def async_update_task(self, **kwargs: Any) -> None:
         self.updates.append(kwargs)
 

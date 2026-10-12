@@ -220,7 +220,7 @@ create_chore:
 
 update_task:
   name: Update Task
-  description: Update an existing Donetick task
+  description: Update an existing Donetick task. Archived tasks remain archived unless Force Unarchive is enabled.
   fields:
     task_id:
       name: Task ID
@@ -249,6 +249,21 @@ update_task:
       required: false
       selector:
         text:
+    force_unarchive:
+      name: Force Unarchive
+      description: Reactivate this task if it is archived (optional; defaults to false)
+      required: false
+      default: false
+      selector:
+        boolean:
+    assigned_to:
+      name: Assignee User ID
+      description: Assign to an eligible Donetick user ID, or use null in YAML for Anyone. Switching to or from Anyone requires task edit permission.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
     config_entry_id:
       name: Config Entry ID
       description: The specific Donetick integration to use (optional, uses first if not specified)
@@ -299,5 +314,32 @@ delete_task:
       name: Config Entry ID
       description: The specific Donetick integration to use (optional, uses first if not specified)
       required: false
+      selector:
+        text:
+
+complete_assigned_task:
+  name: Complete as assigned user
+  description: Complete a task as its current Donetick assignee, or as the API token owner for tasks assigned to Anyone.
+  fields:
+    task_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    config_entry_id:
+      selector:
+        text:
+postpone_task:
+  name: Reschedule task
+  description: Use Donetick's scheduler to skip to the next occurrence without completing the task.
+  fields:
+    task_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    config_entry_id:
       selector:
         text:
