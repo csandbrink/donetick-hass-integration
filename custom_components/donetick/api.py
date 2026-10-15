@@ -1,14 +1,47 @@
 """API client for Donetick."""
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 import json
+import re
 from typing import Any, List, Mapping, Optional, cast
 import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from .const import API_TIMEOUT
 from .model import DonetickProject, DonetickTask, DonetickThing, DonetickMember, DonetickChoreHistory
 _LOGGER = logging.getLogger(__name__)
+
+_DATE_ONLY_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def normalize_due_date(value: str | date | datetime | None) -> str | None:
+    """Return a due date as RFC3339 text, which every Donetick create endpoint stores.
+
+    A date alone means the end of that day in Home Assistant's time zone, so the
+    task stays due on the chosen local day. A date-time without an offset is read
+    in that time zone.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        try:
+            value = (
+                date.fromisoformat(text)
+                if _DATE_ONLY_PATTERN.fullmatch(text)
+                else datetime.fromisoformat(text.replace("Z", "+00:00"))
+            )
+        except ValueError as err:
+            raise ValueError(
+                f"Invalid due date {text!r}; use RFC3339 or YYYY-MM-DD"
+            ) from err
+    if not isinstance(value, datetime):
+        value = datetime.combine(value, time(23, 59, 59))
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=dt_util.get_default_time_zone())
+    return value.isoformat()
+
 
 class DonetickApiClient:
     """API client for Donetick."""
@@ -235,23 +268,48 @@ class DonetickApiClient:
             _LOGGER.error("Error parsing Donetick complete task response: %s", err)
             raise
 
-    async def async_create_task(self, name: str, description: str = None, due_date: str = None, created_by: int = None, project_id: int = None) -> DonetickTask:
-        """Create a new task"""
-        headers = self._headers()
+    async def async_create_task(self, name: str, description: str = None, due_date: str | date | datetime | None = None, created_by: int = None, project_id: int = None, assigned_to: int | None = None) -> DonetickTask:
+        """Create a one-off task.
 
-        payload = {"name": name, "frequencyType": "once", "assignStrategy": "no_assignee"}
+        Without a project or assigned_to this uses the eAPI, which makes
+        created_by (or the token owner) the creator and only assignee. The eAPI
+        lets only the creator delete a task, so tasks for an assignee use the
+        full API, which keeps the token owner as creator and assigns assigned_to
+        (or created_by). Project tasks use it too, because the eAPI ignores
+        projectId before Donetick 0.1.80.
+        """
+        headers = self._headers()
+        due_date = normalize_due_date(due_date)
+        use_eapi = project_id is None and assigned_to is None
+
+        if use_eapi:
+            url = f"{self._base_url}/eapi/v1/chore"
+            payload: dict[str, Any] = {"name": name}
+            if due_date:
+                payload["dueDate"] = due_date
+            if created_by:
+                payload["createdBy"] = created_by
+        else:
+            url = f"{self._base_url}/api/v1/chores/"
+            payload = {"name": name, "frequencyType": "once", "assignStrategy": "no_assignee"}
+            if project_id is not None:
+                payload["projectId"] = project_id
+            if due_date:
+                # Donetick 0.1.76 and later read nextDueDate, earlier versions
+                # dueDate; each ignores the other key.
+                payload["nextDueDate"] = due_date
+                payload["dueDate"] = due_date
+            assignee = assigned_to or created_by
+            if assignee:
+                payload["assignStrategy"] = "keep_last_assigned"
+                payload["assignedTo"] = assignee
+                payload["assignees"] = [{"userId": assignee}]
         if description:
             payload["description"] = description
-        if due_date:
-            payload["dueDate"] = due_date
-        if created_by:
-            payload["createdBy"] = created_by
-        if project_id:
-            payload["projectId"] = project_id
         _LOGGER.debug("Creating task with payload: %s", json.dumps(payload))
         try:
             async with self._session.post(
-                f"{self._base_url}/api/v1/chores/",
+                url,
                 headers=headers,
                 json=payload,
                 timeout=API_TIMEOUT
@@ -259,12 +317,20 @@ class DonetickApiClient:
                 response.raise_for_status()
                 data = await response.json()
                 _LOGGER.debug("New task: %s", data)
-                return await self.async_get_task_detail(data["res"])  # Fetch full task details after creation
+                if use_eapi:
+                    return DonetickTask.from_json(data)
+                task_id = data.get("res") if isinstance(data, dict) else None
+                if not isinstance(task_id, int) or isinstance(task_id, bool):
+                    raise ValueError("Unexpected Donetick create task response")
+                # The full API returns only the ID. Build the task from the request
+                # instead of fetching it, so a failed follow-up request cannot
+                # report a task that was created as a failure.
+                return DonetickTask.from_json({**payload, "id": task_id})
 
         except aiohttp.ClientError as err:
             _LOGGER.error("Error creating task in Donetick: %s", err)
             raise
-        except (KeyError, ValueError, json.JSONDecodeError) as err:
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as err:
             _LOGGER.error("Error parsing Donetick create task response: %s", err)
             raise
 
@@ -319,6 +385,9 @@ class DonetickApiClient:
                 error_data = None
             if isinstance(error_data, dict):
                 reason = error_data.get("error")
+                if isinstance(reason, str):
+                    # Donetick's task editor and assignee endpoints prefix the reason.
+                    reason = reason.removeprefix("You cannot edit this chore: ")
                 if reason in (
                     "Only plus members can access this endpoint",
                     "You can only update your own chores",
@@ -426,7 +495,7 @@ class DonetickApiClient:
                 json=payload,
                 timeout=API_TIMEOUT,
             ) as response:
-                response.raise_for_status()
+                await self._raise_for_status(response, "reassignment")
         except aiohttp.ClientError as err:
             _LOGGER.error("Error assigning Donetick task %d: %s", task_id, err)
             raise

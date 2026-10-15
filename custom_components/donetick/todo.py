@@ -21,7 +21,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN, CONF_URL, CONF_TOKEN, CONF_SHOW_DUE_IN, CONF_SHOW_NO_DUE_DATE, CONF_CREATE_UNIFIED_LIST, CONF_CREATE_PROJECT_LISTS, CONF_CREATE_ASSIGNEE_LISTS
-from .api import DonetickApiClient
+from .api import DonetickApiClient, normalize_due_date
 from .model import DonetickProject, DonetickTask, DonetickMember
 
 _LOGGER = logging.getLogger(__name__)
@@ -206,29 +206,26 @@ class DonetickTodoListBase(CoordinatorEntity, TodoListEntity):
         )
         
         try:
-            # Determine the created_by user for assignee lists
-            created_by = None
+            # Assign items on an assignee list to that member. The token owner stays
+            # the creator, because Donetick's eAPI lets only the creator delete a task.
+            assigned_to = None
             if hasattr(self, '_member'):
-                created_by = self._member.user_id
+                assigned_to = self._member.user_id
             
             project_id = None
             if hasattr(self, '_project'):
                 project_id = self._project.id
-            _LOGGER.debug("Creating task '%s' in project %d by user %d", item.summary, project_id, created_by)
+            _LOGGER.debug("Creating task '%s' in project %s for user %s", item.summary, project_id, assigned_to)
 
-            # Convert due date to RFC3339 format if provided
-            due_date = None
-            if item.due:
-                due_date = item.due.isoformat()
-            
+            # The client converts the date or date-time to RFC3339 in HA's time zone.
             result = await client.async_create_task(
                 name=item.summary,
                 description=item.description,
-                due_date=due_date,
-                created_by=created_by,
-                project_id=project_id
+                due_date=item.due,
+                project_id=project_id,
+                assigned_to=assigned_to,
             )
-            _LOGGER.info("Created task '%s' in project %s with ID %d", item.summary, getattr(self, '_project_id', None), result.id)
+            _LOGGER.info("Created task '%s' in project %s with ID %s", item.summary, project_id, result.id)
             
         except Exception as e:
             _LOGGER.error("Failed to create task '%s': %s", item.summary, e)
@@ -266,16 +263,13 @@ class DonetickTodoListBase(CoordinatorEntity, TodoListEntity):
                 # Update task properties (summary, description, due date)
                 _LOGGER.debug("Updating task %d properties", task_id)
                 
-                # Convert due date to RFC3339 format if provided
-                due_date = None
-                if item.due:
-                    due_date = item.due.isoformat()
-                
+                # Same conversion as on create, so a date alone stays on the
+                # chosen local day instead of the eAPI's date plus UTC time.
                 await client.async_update_task(
                     task_id=task_id,
                     name=item.summary,
                     description=item.description,
-                    due_date=due_date,
+                    due_date=normalize_due_date(item.due),
                 )
                 _LOGGER.info("Updated task %d", task_id)
                 

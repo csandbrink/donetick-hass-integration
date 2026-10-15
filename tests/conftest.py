@@ -3,6 +3,7 @@
 import sys
 import types
 from collections.abc import Iterator
+from datetime import timezone, tzinfo
 from pathlib import Path
 from typing import Any, cast
 
@@ -151,6 +152,8 @@ components = cast(Any, types.ModuleType("homeassistant.components"))
 todo = cast(Any, types.ModuleType("homeassistant.components.todo"))
 frontend = cast(Any, types.ModuleType("homeassistant.components.frontend"))
 http = cast(Any, types.ModuleType("homeassistant.components.http"))
+util = cast(Any, types.ModuleType("homeassistant.util"))
+dt_util = cast(Any, types.ModuleType("homeassistant.util.dt"))
 
 
 class StaticPathConfig:
@@ -182,6 +185,15 @@ todo.TodoListEntity = TodoListEntity
 todo.TodoListEntityFeature = TodoListEntityFeature
 frontend.add_extra_js_url = lambda hass, url: None
 http.StaticPathConfig = StaticPathConfig
+# Tests set the HA time zone by monkeypatching ``DEFAULT_TIME_ZONE``.
+dt_util.DEFAULT_TIME_ZONE = timezone.utc
+
+
+def _get_default_time_zone() -> tzinfo:
+    return dt_util.DEFAULT_TIME_ZONE
+
+
+dt_util.get_default_time_zone = _get_default_time_zone
 
 homeassistant.core = core
 homeassistant.config_entries = config_entries
@@ -189,6 +201,8 @@ homeassistant.const = ha_const
 homeassistant.exceptions = exceptions
 homeassistant.helpers = helpers
 homeassistant.components = components
+homeassistant.util = util
+util.dt = dt_util
 helpers.config_validation = config_validation
 helpers.aiohttp_client = aiohttp_client
 helpers.update_coordinator = update_coordinator
@@ -214,5 +228,7 @@ for name, module in {
     "homeassistant.components.todo": todo,
     "homeassistant.components.frontend": frontend,
     "homeassistant.components.http": http,
+    "homeassistant.util": util,
+    "homeassistant.util.dt": dt_util,
 }.items():
     sys.modules[name] = module

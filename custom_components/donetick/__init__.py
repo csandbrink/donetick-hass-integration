@@ -13,7 +13,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .api import DonetickApiClient
+from .api import DonetickApiClient, normalize_due_date
 from .chore_payload import (
     ASSIGNMENT_STRATEGIES,
     FREQUENCY_TYPES,
@@ -311,10 +311,13 @@ async def async_create_task_service(hass: HomeAssistant, call: ServiceCall) -> N
     """Handle the create_task service call."""
     name = call.data["name"]
     description = call.data.get("description")
-    due_date = call.data.get("due_date")
     created_by = call.data.get("created_by")
     config_entry_id = call.data.get("config_entry_id")
-    
+    try:
+        due_date = normalize_due_date(call.data.get("due_date"))
+    except ValueError as err:
+        raise ServiceValidationError(str(err)) from err
+
     # Find the config entry to use
     entry = await _get_config_entry(hass, config_entry_id)
     if not entry:
@@ -327,11 +330,11 @@ async def async_create_task_service(hass: HomeAssistant, call: ServiceCall) -> N
 
     try:
         result = await client.async_create_task(name, description, due_date, created_by)
-        _LOGGER.info("Task '%s' created successfully with ID %d", name, result.id)
-        await coordinator.async_request_refresh()
-
     except Exception as e:
         _LOGGER.error("Failed to create task '%s': %s", name, e)
+        return
+    _LOGGER.info("Task '%s' created successfully with ID %s", name, result.id)
+    await coordinator.async_request_refresh()
 
 
 async def async_create_chore_service(hass: HomeAssistant, call: ServiceCall) -> None:

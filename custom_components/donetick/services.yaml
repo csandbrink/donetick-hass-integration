@@ -89,13 +89,21 @@ create_task:
           multiline: true
     due_date:
       name: Due Date
-      description: Task due date in RFC3339 format (optional, e.g., 2025-07-28T18:00:00Z)
+      description: >-
+        Task due date (optional): RFC3339 (e.g., 2025-07-28T18:00:00Z) or YYYY-MM-DD.
+        A time without an offset uses Home Assistant's time zone; a date alone means
+        the end of that day.
       required: false
       selector:
         text:
     created_by:
       name: Created By User ID
-      description: The Donetick user ID who created the task (optional)
+      description: >-
+        The Donetick user ID who creates the task and is assigned to it
+        (optional, defaults to the API token owner). Donetick lets only the
+        creator delete the task through its API, so Home Assistant cannot
+        delete a task created for another user, or edit it unless the token
+        owner is a circle admin.
       required: false
       selector:
         number:
