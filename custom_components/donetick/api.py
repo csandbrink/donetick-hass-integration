@@ -1,5 +1,6 @@
 """API client for Donetick."""
 import logging
+import asyncio
 from datetime import date, datetime, time, timezone
 import json
 import re
@@ -579,7 +580,7 @@ class DonetickApiClient:
 
                 return DonetickTask.from_json(detail)
 
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             _LOGGER.debug("Unable to fetch Donetick task detail %d: %s", task_id, err)
             return None
         except (KeyError, ValueError, json.JSONDecodeError) as err:
@@ -614,7 +615,7 @@ class DonetickApiClient:
 
                 return DonetickChoreHistory.from_json_list(history)
 
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             _LOGGER.debug("Unable to fetch Donetick task history: %s", err)
             return []
         except (KeyError, ValueError, json.JSONDecodeError) as err:

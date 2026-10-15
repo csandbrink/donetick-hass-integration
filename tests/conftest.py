@@ -3,7 +3,7 @@
 import sys
 import types
 from collections.abc import Iterator
-from datetime import timezone, tzinfo
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any, cast
 
@@ -193,7 +193,19 @@ def _get_default_time_zone() -> tzinfo:
     return dt_util.DEFAULT_TIME_ZONE
 
 
+def _now(time_zone: tzinfo | None = None) -> datetime:
+    return datetime.now(time_zone or dt_util.DEFAULT_TIME_ZONE)
+
+
+def _as_local(dattim: datetime) -> datetime:
+    if dattim.tzinfo is None:
+        dattim = dattim.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    return dattim.astimezone(dt_util.DEFAULT_TIME_ZONE)
+
+
 dt_util.get_default_time_zone = _get_default_time_zone
+dt_util.now = _now
+dt_util.as_local = _as_local
 
 homeassistant.core = core
 homeassistant.config_entries = config_entries
