@@ -100,10 +100,10 @@ create_task:
       name: Created By User ID
       description: >-
         The Donetick user ID who creates the task and is assigned to it
-        (optional, defaults to the API token owner). Donetick lets only the
-        creator delete the task through its API, so Home Assistant cannot
-        delete a task created for another user, or edit it unless the token
-        owner is a circle admin.
+        (optional). Without it, the API token owner creates the task and it is
+        assigned to Anyone. Donetick lets only the creator delete the task
+        through its API, so Home Assistant cannot delete a task created for
+        another user, or edit it unless the token owner is a circle admin.
       required: false
       selector:
         number:

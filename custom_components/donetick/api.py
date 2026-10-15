@@ -271,16 +271,17 @@ class DonetickApiClient:
     async def async_create_task(self, name: str, description: str = None, due_date: str | date | datetime | None = None, created_by: int = None, project_id: int = None, assigned_to: int | None = None) -> DonetickTask:
         """Create a one-off task.
 
-        Without a project or assigned_to this uses the eAPI, which makes
-        created_by (or the token owner) the creator and only assignee. The eAPI
-        lets only the creator delete a task, so tasks for an assignee use the
-        full API, which keeps the token owner as creator and assigns assigned_to
-        (or created_by). Project tasks use it too, because the eAPI ignores
-        projectId before Donetick 0.1.80.
+        Only created_by without a project or assigned_to uses the eAPI, which
+        makes that user the creator and only assignee. Everything else uses the
+        full API, which keeps the token owner as creator, so Home Assistant can
+        still edit and delete the task (the eAPI lets only the creator delete).
+        There a task is assigned to assigned_to (or created_by), or otherwise to
+        Anyone. Project tasks need it too, because the eAPI ignores projectId
+        before Donetick 0.1.80.
         """
         headers = self._headers()
         due_date = normalize_due_date(due_date)
-        use_eapi = project_id is None and assigned_to is None
+        use_eapi = created_by is not None and project_id is None and assigned_to is None
 
         if use_eapi:
             url = f"{self._base_url}/eapi/v1/chore"

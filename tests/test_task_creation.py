@@ -324,6 +324,27 @@ async def test_member_list_item_is_assigned_to_member_and_stays_listed(
     assert [item.summary for item in entity.todo_items] == ["Buy milk"]
 
 
+async def test_all_list_item_is_assigned_to_anyone(
+    monkeypatch: pytest.MonkeyPatch, server: FakeDonetick
+) -> None:
+    entity = _list_entity(monkeypatch, server, todo.DonetickAllTasksList)
+
+    await entity.async_create_todo_item(todo.TodoItem(summary="Buy milk"))
+
+    [stored] = server.chores.values()
+    assert (stored["createdBy"], stored["assignedTo"], stored["assignees"],
+            stored["assignStrategy"]) == (TOKEN_OWNER, None, [], "no_assignee")
+    assert [item.summary for item in entity.todo_items] == ["Buy milk"]
+    member_list = _list_entity(monkeypatch, server, todo.DonetickAssigneeTasksList,
+                               _member(TOKEN_OWNER))
+    member_list.coordinator.data = entity.coordinator.data
+    # Not on the token owner's own list; it shows as an Anyone task instead.
+    assert member_list.todo_items == []
+    assert [task["name"] for task in member_list.extra_state_attributes["anyone_tasks"]] == [
+        "Buy milk"
+    ]
+
+
 _LISTS = [
     pytest.param(todo.DonetickAllTasksList, (), id="all"),
     pytest.param(todo.DonetickAssigneeTasksList, (_member(2),), id="member"),
@@ -486,6 +507,20 @@ async def test_create_task_service_keeps_due_date_and_creator(
     [stored] = server.chores.values()
     assert stored["nextDueDate"] == stored_due
     assert (stored["createdBy"], stored["assignedTo"]) == (2, 2)
+    assert hass.data[integration.DOMAIN]["entry-1"]["coordinator"].refresh_count == 1
+
+
+async def test_create_task_service_without_creator_assigns_anyone() -> None:
+    server = FakeDonetick()
+    hass = _service_hass(server)
+
+    await integration.async_create_task_service(
+        hass, ServiceCall(integration.CREATE_TASK_SCHEMA({"name": "Milk", "due_date": "2026-11-01"}))
+    )
+
+    [stored] = server.chores.values()
+    assert (stored["createdBy"], stored["assignedTo"], stored["assignees"]) == (TOKEN_OWNER, None, [])
+    assert stored["nextDueDate"] == "2026-11-02T06:59:59Z"
     assert hass.data[integration.DOMAIN]["entry-1"]["coordinator"].refresh_count == 1
 
 
