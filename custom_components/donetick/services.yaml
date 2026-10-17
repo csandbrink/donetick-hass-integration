@@ -29,10 +29,11 @@ complete_chore:
   name: Complete Chore (Full API)
   description: >-
     Complete a Donetick chore and record the circle member who actually did it.
-    The configured API token must belong to a circle admin or manager. When the
-    chore is assigned to another member, provide assigned_to so Donetick can
-    authorize the completion as that assignee; completed_by remains the actual
-    performer.
+    The configured API token must belong to a circle admin or manager. Anyone
+    who may call this service in Home Assistant can therefore record
+    completions for any circle member. For private chores the token owner
+    cannot complete, provide assigned_to so Donetick can authorize the
+    completion as that member; completed_by remains the actual performer.
   fields:
     chore_id:
       name: Chore ID
@@ -53,9 +54,10 @@ complete_chore:
     assigned_to:
       name: Assigned To User ID
       description: >-
-        Optional circle member currently assigned to the chore. The integration
-        uses this ID only to authorize the Full-API completion as the assignee;
-        it does not replace completed_by.
+        Optional circle member allowed to complete the chore, usually its
+        assignee. Only needed for private chores the token owner cannot
+        complete. The integration uses this ID only to authorize the Full-API
+        completion as that member; it does not replace completed_by.
       required: false
       selector:
         number:
@@ -87,13 +89,21 @@ create_task:
           multiline: true
     due_date:
       name: Due Date
-      description: Task due date in RFC3339 format (optional, e.g., 2025-07-28T18:00:00Z)
+      description: >-
+        Task due date (optional): RFC3339 (e.g., 2025-07-28T18:00:00Z) or YYYY-MM-DD.
+        A time without an offset uses Home Assistant's time zone; a date alone means
+        the end of that day.
       required: false
       selector:
         text:
     created_by:
       name: Created By User ID
-      description: The Donetick user ID who created the task (optional)
+      description: >-
+        The Donetick user ID who creates the task and is assigned to it
+        (optional). Without it, the API token owner creates the task and it is
+        assigned to Anyone. Donetick lets only the creator delete the task
+        through its API, so Home Assistant cannot delete a task created for
+        another user, or edit it unless the token owner is a circle admin.
       required: false
       selector:
         number:
@@ -165,13 +175,17 @@ create_chore:
         object:
     assignee_ids:
       name: Assignee User IDs
-      description: List of Donetick user IDs eligible for assignment
+      description: >-
+        List of Donetick user IDs eligible for assignment. Each ID must be an
+        active member of the circle; unknown IDs are rejected.
       required: false
       selector:
         object:
     assigned_to:
       name: Assigned To User ID
-      description: Donetick user ID currently assigned to the chore
+      description: >-
+        Donetick user ID currently assigned to the chore. Must be an active
+        member of the circle; unknown IDs are rejected.
       required: false
       selector:
         number:
@@ -214,7 +228,7 @@ create_chore:
 
 update_task:
   name: Update Task
-  description: Update an existing Donetick task
+  description: Update an existing Donetick task. Archived tasks remain archived unless Force Unarchive is enabled.
   fields:
     task_id:
       name: Task ID
@@ -243,6 +257,21 @@ update_task:
       required: false
       selector:
         text:
+    force_unarchive:
+      name: Force Unarchive
+      description: Reactivate this task if it is archived (optional; defaults to false)
+      required: false
+      default: false
+      selector:
+        boolean:
+    assigned_to:
+      name: Assignee User ID
+      description: Assign to an eligible Donetick user ID, or use null in YAML for Anyone. Switching to or from Anyone requires task edit permission.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
     config_entry_id:
       name: Config Entry ID
       description: The specific Donetick integration to use (optional, uses first if not specified)
@@ -293,5 +322,32 @@ delete_task:
       name: Config Entry ID
       description: The specific Donetick integration to use (optional, uses first if not specified)
       required: false
+      selector:
+        text:
+
+complete_assigned_task:
+  name: Complete as assigned user
+  description: Complete a task as its current Donetick assignee, or as the API token owner for tasks assigned to Anyone.
+  fields:
+    task_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    config_entry_id:
+      selector:
+        text:
+postpone_task:
+  name: Reschedule task
+  description: Use Donetick's scheduler to skip to the next occurrence without completing the task.
+  fields:
+    task_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    config_entry_id:
       selector:
         text:

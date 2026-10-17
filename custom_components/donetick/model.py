@@ -29,6 +29,27 @@ def _parse_datetime(value: Any) -> Optional[datetime]:
         return None
 
 @dataclass
+class DonetickProject:
+    """Donetick project model."""
+    id: int
+    name: str
+    description: Optional[str] = None
+
+    @classmethod
+    def from_json(cls, data: dict) -> "DonetickProject":
+        """Create a DonetickProject from JSON data."""
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            description=data.get("description"),
+        )
+
+    @classmethod
+    def from_json_list(cls, data: List[dict]) -> List["DonetickProject"]:
+        """Create a list of DonetickProjects from JSON data."""
+        return [cls.from_json(project) for project in data]
+
+@dataclass
 class DonetickMember:
     """Donetick circle member model."""
     id: int
@@ -43,7 +64,7 @@ class DonetickMember:
     points_redeemed: int = 0
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
-    
+
     @classmethod
     def from_json(cls, data: dict) -> "DonetickMember":
         """Create a DonetickMember from JSON data."""
@@ -86,6 +107,7 @@ class DonetickTask:
     frequency_type: str
     frequency: int
     frequency_metadata: Optional[Any]
+    project_id: Optional[int] = None
     assigned_to: Optional[int] = None
     description: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -95,6 +117,16 @@ class DonetickTask:
     duration: Optional[int] = None
     start_time: Optional[datetime] = None
     timer_updated_at: Optional[datetime] = None
+    assignee_ids: Optional[List[int]] = None
+    points: Optional[int] = None
+
+    @property
+    def interval_type(self) -> Optional[str]:
+        """Return the interval unit, when this task uses interval recurrence."""
+        if self.frequency_type != "interval" or not isinstance(self.frequency_metadata, dict):
+            return None
+        unit = self.frequency_metadata.get("unit")
+        return unit if isinstance(unit, str) and unit else None
     
     @classmethod
     def from_json(cls, data: dict) -> "DonetickTask":
@@ -111,13 +143,16 @@ class DonetickTask:
             next_due_date=_parse_datetime(data.get("nextDueDate")),
             status=data.get("status", 0),
             priority=data.get("priority", 0),
-            labels=data.get("labels") or data.get("labelsV2"),
+            labels=data.get("labelsV2") if data.get("labelsV2") is not None else data.get("labels"),
             is_active=data.get("isActive", True),
             is_rolling=data.get("isRolling", False),
             frequency_type=data.get("frequencyType", "once"),
             frequency=data.get("frequency") or 1,
             frequency_metadata=data.get("frequencyMetadata"),
+            project_id=data.get("projectId"),
             assigned_to=assigned_to,
+            assignee_ids=[assignee["userId"] for assignee in (data.get("assignees") or [])
+                          if isinstance(assignee, dict) and isinstance(assignee.get("userId"), int)],
             description=data.get("description"),
             created_at=_parse_datetime(data.get("createdAt")),
             updated_at=_parse_datetime(data.get("updatedAt")),
@@ -126,6 +161,7 @@ class DonetickTask:
             duration=data.get("duration"),
             start_time=_parse_datetime(data.get("startTime")),
             timer_updated_at=_parse_datetime(data.get("timerUpdatedAt")),
+            points=data.get("points"),
         )
     
     @classmethod
