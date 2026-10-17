@@ -172,6 +172,21 @@ complete_assigned_task:
         number:
           min: 1
           mode: box
+    completed_by:
+      name: Completed By User ID
+      description: >-
+        Credit the completion to this Donetick user instead of the task's
+        current assignee. Donetick decides who may be credited and rejects
+        anyone else: a public task accepts its current assignee, its
+        assignees and circle admins or managers; a private task only its
+        creator, its current assignee and its assignees; an unassigned
+        Anyone task accepts any circle member when public and only its
+        creator when private.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
     config_entry_id:
       selector:
         text:
