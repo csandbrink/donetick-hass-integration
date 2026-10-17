@@ -154,8 +154,11 @@ export function actionData(state, task) {
   const data = {task_id: task.task_id, config_entry_id: state.attributes.config_entry_id};
   return data;
 }
+// Every active circle member can be assigned. The integration adds the person
+// to the task's circle when needed, so assignee_ids does not limit the choice.
+// The current assignee stays listed even if they have since been deactivated.
 export function assignableMembers(state, task) {
-  return (state?.attributes.circle_members || []).filter(member => !task.assignee_ids?.length || task.assignee_ids.includes(member.user_id));
+  return (state?.attributes.circle_members || []).filter(member => member.is_active !== false || member.user_id === task.assigned_to);
 }
 export function localDateTime(value) {
   const date = value ? new Date(value) : new Date();

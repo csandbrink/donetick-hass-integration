@@ -250,7 +250,7 @@ await new Promise(resolve=>setTimeout(resolve,1050));
 card.setConfig({entity:'todo.all',user_id:1,complete_control:'button',button_content:'icon_and_label'});
 assert.equal(root.querySelectorAll('input[type=checkbox]').length,0);
 // Multi-user labels depend on the view's scope, even when only one user's tasks match.
-hass.states['todo.all'].attributes.circle_members.push({user_id:2,display_name:'Melissa'},{user_id:3,display_name:'Not eligible'});
+hass.states['todo.all'].attributes.circle_members.push({user_id:2,display_name:'Melissa'},{user_id:3,display_name:'Christoph'},{user_id:4,display_name:'Left circle',is_active:false});
 hass.states['todo.all'].attributes.tasks[0].assignee_ids=[1,2];
 card.setConfig({entity:'todo.all',user_id:'all'});
 assert.equal(root.querySelectorAll('.row').length,3);
@@ -269,11 +269,15 @@ assert.equal(root.querySelector('select').value,'1');
 hass.themes={darkMode:false};card.hass=hass;
 assert.equal(root.querySelector('select').style.colorScheme,'light');
 assert.equal(root.querySelector('.save-action').disabled,true);
-assert.deepEqual([...root.querySelector('select').options].map(option=>option.value),['anyone','1','2']);
+assert.deepEqual([...root.querySelector('select').options].map(option=>option.value),['anyone','1','2','3']);
 click('Reassign: Weekly');assert.equal(root.querySelector('form'),null);
 click('Reassign: Weekly');
 let assignee=root.querySelector('select');assignee.value='2';assignee.dispatchEvent(new window.Event('change'));
 assert.equal(root.querySelector('.save-action').disabled,false);
+// Everyone active is selectable, including people outside the task's assignee_ids; inactive members are not offered.
+for (const id of ['1','2','3']) { assignee.value=id; assignee.dispatchEvent(new window.Event('change')); assert.equal(root.querySelector('.save-action').disabled, id==='1'); }
+assert.ok(![...assignee.options].some(option=>option.value==='4'));
+assignee.value='2';assignee.dispatchEvent(new window.Event('change'));
 card.hass=hass;assert.equal(root.querySelector('select').value,'2');
 fail=true;submit();await tick();
 assert.match(root.querySelector('.action-panel .error').textContent,/Permission denied/);

@@ -77,6 +77,36 @@ class TaskReassignmentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(url, "https://example.invalid/api/v1/chores/5/assignee")
         self.assertEqual(args["json"]["assignee"], 2)
 
+    async def test_single_person_circle_is_replaced_by_the_new_assignee(self):
+        self.task.update(assignees=[{"userId": 1}], assignedTo=1, assignStrategy="keep_last_assigned")
+        await self.client.async_assign_task(5, 3)
+        method, url, args = self.requests[-1]
+        self.assertEqual((method, url), ("put", "https://example.invalid/api/v1/chores/"))
+        payload = args["json"]
+        self.assertEqual(payload["assignees"], [{"userId": 3}])
+        self.assertEqual(payload["assignedTo"], 3)
+        self.assertEqual(payload["assignStrategy"], "keep_last_assigned")
+        self.assertEqual(payload["labelsV2"], [{"id": 8}, {"id": 10}])
+        self.assertEqual(payload["thingTrigger"], {"thingID": 6, "triggerState": "on", "condition": "eq"})
+
+    async def test_rotation_gains_the_new_assignee_and_keeps_its_strategy(self):
+        # Circle is [1, 2] with round_robin; 3 is outside it.
+        await self.client.async_assign_task(5, 3)
+        method, url, args = self.requests[-1]
+        self.assertEqual((method, url), ("put", "https://example.invalid/api/v1/chores/"))
+        payload = args["json"]
+        self.assertEqual(payload["assignees"], [{"userId": 1}, {"userId": 2}, {"userId": 3}])
+        self.assertEqual(payload["assignedTo"], 3)
+        self.assertEqual(payload["assignStrategy"], "round_robin")
+
+    async def test_member_already_in_the_circle_uses_the_assignee_endpoint(self):
+        self.task.update(assignees=[{"userId": 1}, {"userId": 2}, {"userId": 3}])
+        await self.client.async_assign_task(5, 3)
+        self.assertEqual(len(self.requests), 2)
+        _, url, args = self.requests[-1]
+        self.assertEqual(url, "https://example.invalid/api/v1/chores/5/assignee")
+        self.assertEqual(args["json"]["assignee"], 3)
+
     async def test_missing_timestamp_prevents_full_edit(self):
         self.task.pop("updatedAt")
         with self.assertRaisesRegex(ValueError, "no update timestamp"):

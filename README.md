@@ -181,11 +181,13 @@ Views containing only one user's tasks omit the name. The setting depends on the
 useful even when the current filter happens to match only one user's tasks.
 **Allow reassignment** enables a user-switch icon on each row.
 Tap it to choose **Anyone** or a user, then confirm with the save icon; tap again to close.
-The picker includes Anyone even in a single-user circle. User choices are current
-circle members in that task's Donetick assignee list, or all circle members when
-the task has no assignee list. Selecting Anyone disables automatic user assignment;
+The picker includes Anyone even in a single-user circle. User choices are all active
+circle members. If the chosen person is not yet in the task's Donetick assignee list,
+the integration updates the list through the full editor: a single-person list is
+replaced by the new person, while a rotation keeps its members and strategy and gains
+the new person. Selecting Anyone disables automatic user assignment;
 selecting a user for an Anyone task keeps that user assigned on future occurrences.
-Switching to or from Anyone requires permission to edit the task. This uses `donetick.update_task`
+Switching to or from Anyone, or to someone outside the task's assignee list, requires permission to edit the task. This uses `donetick.update_task`
 with `assigned_to`, preserves recurrence, and refreshes all lists. A reassigned task
 leaves its previous user's card. Future completion uses the new current assignee.
 YAML supports `user_id: all`, `show_assignee: false`, and `show_reassign: false`.
