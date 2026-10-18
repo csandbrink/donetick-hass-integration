@@ -294,6 +294,16 @@ hidden from the label and tooltip. The full date is available in a tooltip.
 Tasks sort by due date, with undated tasks last. Completion
 briefly shows a checked, struck-through row. Successful actions update the list without
 extra confirmation text; failures remain visible.
+
+**Complete tasks with** offers a third control besides the checkbox and the button: an
+**Initials circle on the left** showing the assignee's initials, which completes the task
+on tap like the checkbox does. One letter is used unless another circle member's name
+starts with the same letter, in which case both get two; the full name stays in the
+control's tooltip, and a task assigned to **Anyone** shows an empty circle. The circle
+keeps the checkbox's 44 × 44 pixel tap target and its accessible name, and the right-hand
+action icons are unaffected. YAML supports `complete_control: checkbox`,
+`complete_control: initials` and `complete_control: button`; the appearance presets all
+use the checkbox, so choosing the circle reports the starting style as Custom.
 The card editor uses native Home Assistant form controls: entity and user selectors,
 searchable icon pickers, theme color choices, and helper text explaining each setting.
 Choose a **Starting style** (HA todo, icons with labels, outlined or filled buttons), then
