@@ -293,7 +293,9 @@ Overdue labels use the theme's warning color. Local 23:59 end-of-day placeholder
 hidden from the label and tooltip. The full date is available in a tooltip.
 Tasks sort by due date, with undated tasks last. Completion
 briefly shows a checked, struck-through row. Successful actions update the list without
-extra confirmation text; failures remain visible.
+extra confirmation text; failures remain visible. A failure is shown in the panel of the
+task it belongs to, or above the list naming that task when its panel has since been
+closed or another row's panel is open.
 
 **Complete tasks with** offers a third control besides the checkbox and the button: an
 **Initials circle on the left** showing the assignee's initials, which completes the task
@@ -304,6 +306,21 @@ keeps the checkbox's 44 × 44 pixel tap target and its accessible name, and the 
 action icons are unaffected. YAML supports `complete_control: checkbox`,
 `complete_control: initials` and `complete_control: button`; the appearance presets all
 use the checkbox, so choosing the circle reports the starting style as Custom.
+
+**Credit completion to** decides who a completion is recorded for. The default, *The task
+assignee*, keeps the existing behaviour. *Ask who completed it* turns any of the three
+completion controls into a question: tapping it opens a row of circle members below the
+task, and tapping a member records the completion for that person through
+`donetick.complete_assigned_task` with `completed_by`. Tapping the control again, Escape
+or a tap outside closes the row without changing anything. The row offers every circle
+member, with the task's current assignee first and its other assignees next: whether
+Donetick accepts a completion depends on the task's privacy, its assignment strategy, its
+project and the member's circle role, so the card lets the server decide and leaves its
+refusal visible on the row rather than predicting it. Each member shows initials and a
+name, and the initials follow the whole circle, so a member's letters are the same in the
+row and in the task above it. Without a circle list the control completes the task as
+usual. This is off by default; YAML supports `credit_completion: assignee` and
+`credit_completion: choose`.
 The card editor uses native Home Assistant form controls: entity and user selectors,
 searchable icon pickers, theme color choices, and helper text explaining each setting.
 Choose a **Starting style** (HA todo, icons with labels, outlined or filled buttons), then

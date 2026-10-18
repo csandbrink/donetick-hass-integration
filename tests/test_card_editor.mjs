@@ -72,6 +72,8 @@ assert.ok(actions().find(group=>group.name==='reassign'));
 assert.equal(latest.button_style,undefined); // Editing a user must not persist every displayed default.
 update({appearance_preset:'filled'});assert.equal(latest.button_style,'filled');assert.equal(latest.button_size,'normal');
 assert.equal(latest.sort_by,'priority');
+assert.equal(form.data.credit_completion,'assignee');
+assert.deepEqual(editorFields().find(field=>field.name==='credit_completion').selector.select.options.map(option=>option.value),['assignee','choose']);
 update({complete_control:'button'});assert.equal(form.data.appearance_preset,'custom');assert.ok(actions().find(group=>group.name==='complete'));
 update({postpone_color:'red',postpone_icon:'mdi:skip-next'});assert.equal(latest.postpone_color,'red');
 update({appearance_preset:'todo'});assert.equal(latest.complete_control,'checkbox');assert.equal(latest.postpone_color,undefined);assert.equal(latest.postpone_icon,undefined);assert.equal(latest.title,'My tasks');
@@ -83,6 +85,7 @@ assert.deepEqual(visibleActions.schema.filter(field=>field.name.startsWith('show
 update({show_complete:false,show_postpone:false,show_due_date:false,show_reassign:false});
 assert.equal(actions().length,0);
 assert.equal(editorFields().find(field=>field.name==='appearance').schema.some(field=>field.name==='complete_control'),false);
+assert.equal(editorFields().find(field=>field.name==='appearance').schema.some(field=>field.name==='credit_completion'),false);
 update({appearance_preset:'filled'});
 assert.equal(latest.show_complete,false);assert.equal(latest.show_postpone,false);assert.equal(latest.show_due_date,false);assert.equal(latest.show_reassign,false);
 update({show_complete:true,complete_control:'button',show_due_date:true});
