@@ -109,6 +109,7 @@ bare.shadowRoot.querySelector('.complete-initials').click();
 assert.equal(bare.shadowRoot.querySelector('.action-panel'),null);
 assert.deepEqual(calls.pop(),['donetick','complete_assigned_task',{task_id:9,config_entry_id:'entry'}]);
 console.log('Without a circle list the control completes instead of opening an empty panel');
+await new Promise(resolve=>setTimeout(resolve,1050));
 
 // Switching the option off closes an open panel.
 card.setConfig({...base});
@@ -117,3 +118,53 @@ assert.ok(root.querySelector('.panel-members'));
 card.setConfig({...base,credit_completion:'assignee'});
 assert.equal(root.querySelector('.action-panel'),null);
 console.log('Turning the option off closes a panel that is still open');
+
+// A slow call must leave the rest of the card alone, and its refusal must stay its own.
+let accept, refuse;
+const slowHass={locale:{language:'en'},states:{'todo.all':{state:'2',attributes:{config_entry_id:'entry',circle_members:members,tasks:[
+  {task_id:1,assigned_to:1,assignee_ids:[1],name:'Dishes',can_postpone:false},
+  {task_id:2,assigned_to:2,assignee_ids:[2],name:'Laundry',can_postpone:false}
+]}}},callService:(...args)=>new Promise((resolve,reject)=>{calls.push(args);accept=resolve;refuse=()=>reject(new Error(
+  'Donetick task action failed: Donetick denied the completion (400): User is not assigned to chore'));})};
+const slow=document.createElement('donetick-user-todo-card');
+slow.setConfig(base);slow.hass=slowHass;document.body.append(slow);
+const slowRoot=slow.shadowRoot;
+const slowCircles=()=>[...slowRoot.querySelectorAll('.complete-initials')];
+const cardError=()=>[...slowRoot.querySelectorAll('ha-card > .error')].map(error=>error.textContent);
+slowCircles()[0].click();
+slowRoot.querySelector('.panel-members button').click();
+// Everyone stays put while the booking is in flight, so a mistap cannot double-book.
+assert.deepEqual([...slowRoot.querySelectorAll('.panel-members button')].map(button=>button.disabled),[true,true,true,true]);
+slowCircles()[1].click();
+assert.equal(slowRoot.querySelector('.action-panel').getAttribute('aria-label'),'Completed by: Laundry');
+refuse();await tick();await tick();
+// The second row's panel survives the first row's answer, and wears none of it.
+assert.equal(slowRoot.querySelector('.action-panel').getAttribute('aria-label'),'Completed by: Laundry');
+assert.equal(slowRoot.querySelector('.action-panel .error'),null);
+assert.match(cardError()[0],/^Dishes: .*User is not assigned to chore$/);
+assert.equal(slowRoot.querySelectorAll('[role=alert]').length,1);
+console.log('A refusal names its own task and never lands on another row\'s panel');
+
+// The same holds when the first row's booking succeeds: it closes its own panel only.
+slow.setConfig(base);
+calls.length=0;
+slowCircles()[0].click();
+slowRoot.querySelector('.panel-members button').click();
+slowCircles()[1].click();
+assert.equal(slowRoot.querySelector('.action-panel').getAttribute('aria-label'),'Completed by: Laundry');
+accept();await tick();await tick();
+assert.deepEqual(calls.pop(),['donetick','complete_assigned_task',{task_id:1,config_entry_id:'entry',completed_by:1}]);
+assert.equal(slowRoot.querySelector('.action-panel').getAttribute('aria-label'),'Completed by: Laundry');
+assert.equal(cardError().length,0);
+console.log('A booking that succeeds closes its own panel and leaves another row\'s open');
+await new Promise(resolve=>setTimeout(resolve,1050));
+
+// The panel closes rather than standing empty if the circle list empties under it.
+slow.setConfig(base);
+slowCircles()[0].click();
+assert.ok(slowRoot.querySelector('.panel-members'));
+slowHass.states['todo.all']={...slowHass.states['todo.all'],attributes:{...slowHass.states['todo.all'].attributes,circle_members:[]}};
+slow.hass=slowHass;
+assert.equal(slowRoot.querySelector('.action-panel'),null);
+assert.equal(slowRoot.querySelector('.panel-members'),null);
+console.log('A circle list that empties under an open panel closes it instead of showing nothing');
