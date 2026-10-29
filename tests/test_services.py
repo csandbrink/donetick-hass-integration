@@ -332,6 +332,41 @@ async def test_unloading_final_entry_removes_create_chore_service() -> None:
     assert service_key not in hass.services.registered
 
 
+async def test_unloading_final_entry_removes_every_registered_service() -> None:
+    entry = FakeConfigEntry()
+    hass = FakeHass(entry)
+    await integration.async_setup_entry(hass, entry)
+    registered = {
+        service for domain, service in hass.services.registered if domain == integration.DOMAIN
+    }
+    assert registered == set(integration.SERVICE_NAMES)
+
+    assert await integration.async_unload_entry(hass, entry)
+
+    assert hass.services.registered == {}
+
+
+async def test_complete_task_service_returns_the_completion_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = FakeConfigEntry()
+    hass = FakeHass(entry)
+    await integration.async_setup_entry(hass, entry)
+    response = {"task_id": 42, "next_due_date": None}
+    calls: list[Any] = []
+
+    async def fake_complete_task_service(hass_arg: Any, call: Any) -> dict[str, Any]:
+        calls.append((hass_arg, call))
+        return response
+
+    monkeypatch.setattr(integration, "async_complete_task_service", fake_complete_task_service)
+    handler, schema = hass.services.registered[(integration.DOMAIN, "complete_task")]
+    call = SimpleNamespace(data=schema({"task_id": 42}))
+
+    assert await handler(call) is response
+    assert calls == [(hass, call)]
+
+
 def _member(user_id: int, *, is_active: bool = True) -> SimpleNamespace:
     return SimpleNamespace(user_id=user_id, is_active=is_active)
 
