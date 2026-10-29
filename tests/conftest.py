@@ -77,9 +77,57 @@ class StaticPathConfig:
 class TodoItem:
     """Todo item test stub."""
 
+    def __init__(self, **kwargs: Any) -> None:
+        self.summary = kwargs.get("summary")
+        self.uid = kwargs.get("uid")
+        self.status = kwargs.get("status")
+        self.due = kwargs.get("due")
+        self.description = kwargs.get("description")
+
 
 class TodoItemStatus:
     """Todo status test stub."""
+
+    NEEDS_ACTION = "needs_action"
+    COMPLETED = "completed"
+
+
+class TodoListEntityFeature:
+    """Todo feature flags test stub."""
+
+    CREATE_TODO_ITEM = 1
+    DELETE_TODO_ITEM = 2
+    UPDATE_TODO_ITEM = 4
+    MOVE_TODO_ITEM = 8
+    SET_DUE_DATE_ON_ITEM = 16
+    SET_DUE_DATETIME_ON_ITEM = 32
+    SET_DESCRIPTION_ON_ITEM = 64
+
+
+class TodoListEntity:
+    """Todo list entity test stub."""
+
+
+class CoordinatorEntity:
+    """Coordinator entity test stub."""
+
+    def __init__(self, coordinator: Any) -> None:
+        self.coordinator = coordinator
+
+
+class EntityRegistry:
+    """Entity registry test stub backed by ``REGISTERED_ENTITIES``."""
+
+    def async_get(self, entity_id: str) -> Any:
+        return REGISTERED_ENTITIES.get(entity_id)
+
+
+# Tests register entity registry entries here and must clean up after use.
+REGISTERED_ENTITIES: dict[str, Any] = {}
+
+
+def _entity_registry_async_get(hass: Any) -> EntityRegistry:
+    return EntityRegistry()
 
 
 def _string(value: Any) -> str:
@@ -106,6 +154,7 @@ update_coordinator = cast(
     Any, types.ModuleType("homeassistant.helpers.update_coordinator")
 )
 entity_registry = cast(Any, types.ModuleType("homeassistant.helpers.entity_registry"))
+entity_platform = cast(Any, types.ModuleType("homeassistant.helpers.entity_platform"))
 components = cast(Any, types.ModuleType("homeassistant.components"))
 todo = cast(Any, types.ModuleType("homeassistant.components.todo"))
 frontend = cast(Any, types.ModuleType("homeassistant.components.frontend"))
@@ -126,9 +175,13 @@ config_validation.ensure_list = _ensure_list
 config_validation.boolean = bool
 aiohttp_client.async_get_clientsession = lambda hass: None
 update_coordinator.DataUpdateCoordinator = DataUpdateCoordinator
-entity_registry.async_get = lambda hass: None
+update_coordinator.CoordinatorEntity = CoordinatorEntity
+entity_registry.async_get = _entity_registry_async_get
+entity_platform.AddEntitiesCallback = Any
 todo.TodoItem = TodoItem
 todo.TodoItemStatus = TodoItemStatus
+todo.TodoListEntity = TodoListEntity
+todo.TodoListEntityFeature = TodoListEntityFeature
 frontend.add_extra_js_url = lambda hass, url: None
 http.StaticPathConfig = StaticPathConfig
 dt_util.get_default_time_zone = lambda: timezone.utc
@@ -144,6 +197,7 @@ helpers.config_validation = config_validation
 helpers.aiohttp_client = aiohttp_client
 helpers.update_coordinator = update_coordinator
 helpers.entity_registry = entity_registry
+helpers.entity_platform = entity_platform
 components.todo = todo
 components.frontend = frontend
 components.http = http
@@ -160,6 +214,7 @@ for name, module in {
     "homeassistant.helpers.aiohttp_client": aiohttp_client,
     "homeassistant.helpers.update_coordinator": update_coordinator,
     "homeassistant.helpers.entity_registry": entity_registry,
+    "homeassistant.helpers.entity_platform": entity_platform,
     "homeassistant.components": components,
     "homeassistant.components.todo": todo,
     "homeassistant.components.frontend": frontend,

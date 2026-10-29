@@ -4,9 +4,10 @@ from types import SimpleNamespace
 from typing import Any, ClassVar
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 import custom_components.donetick as integration
+from conftest import REGISTERED_ENTITIES
 
 
 class FakeConfigEntry:
@@ -29,11 +30,12 @@ class FakeConfigEntry:
 
 
 class FakeConfigEntries:
-    def __init__(self, entry: FakeConfigEntry) -> None:
+    def __init__(self, entry: FakeConfigEntry, *others: Any) -> None:
         self.entry = entry
+        self.all_entries = {e.entry_id: e for e in (entry, *others)}
 
-    def async_get_entry(self, entry_id: str) -> FakeConfigEntry | None:
-        return self.entry if entry_id == self.entry.entry_id else None
+    def async_get_entry(self, entry_id: str) -> Any:
+        return self.all_entries.get(entry_id)
 
     def async_entries(self, domain: str) -> list[FakeConfigEntry]:
         return [self.entry]
@@ -68,9 +70,9 @@ class FakeServices:
 
 
 class FakeHass:
-    def __init__(self, entry: FakeConfigEntry) -> None:
+    def __init__(self, entry: FakeConfigEntry, *other_entries: Any) -> None:
         self.data: dict[str, Any] = {}
-        self.config_entries = FakeConfigEntries(entry)
+        self.config_entries = FakeConfigEntries(entry, *other_entries)
         self.services = FakeServices()
         self.http = FakeHttp()
 
@@ -313,3 +315,95 @@ async def test_unloading_final_entry_removes_create_chore_service() -> None:
     assert await integration.async_unload_entry(hass, entry)
 
     assert service_key not in hass.services.registered
+
+
+def _member(user_id: int, *, is_active: bool = True) -> SimpleNamespace:
+    return SimpleNamespace(user_id=user_id, is_active=is_active)
+
+
+async def test_setup_ties_update_listener_to_entry_unload() -> None:
+    entry = FakeConfigEntry()
+    hass = FakeHass(entry)
+
+    await integration.async_setup_entry(hass, entry)
+
+    assert len(entry.unload_callbacks) == 1
+
+
+async def test_complete_chore_service_rejects_non_member_performer() -> None:
+    entry = FakeConfigEntry()
+    hass = FakeHass(entry)
+    await integration.async_setup_entry(hass, entry)
+    config = hass.data[integration.DOMAIN][entry.entry_id]
+    client = CompletionClient()
+    config["client"] = client
+    config["circle_members"] = [_member(7), _member(8, is_active=False)]
+    handler, schema = hass.services.registered[(integration.DOMAIN, "complete_chore")]
+
+    with pytest.raises(ServiceValidationError, match="completed_by 99"):
+        await handler(
+            SimpleNamespace(data=schema({"chore_id": 42, "completed_by": 99}))
+        )
+    with pytest.raises(ServiceValidationError, match="assigned_to 8"):
+        await handler(
+            SimpleNamespace(
+                data=schema({"chore_id": 42, "completed_by": 7, "assigned_to": 8})
+            )
+        )
+
+    assert client.completions == []
+    assert config["coordinator"].refresh_count == 0
+
+
+async def test_create_chore_service_rejects_non_member_assignee() -> None:
+    entry = FakeConfigEntry()
+    hass = FakeHass(entry)
+    await integration.async_setup_entry(hass, entry)
+    config = hass.data[integration.DOMAIN][entry.entry_id]
+    client = RecordingClient()
+    config["client"] = client
+    config["circle_members"] = [_member(2)]
+    handler, schema = hass.services.registered[(integration.DOMAIN, "create_chore")]
+
+    with pytest.raises(ServiceValidationError, match="assignee_ids 3"):
+        await handler(
+            SimpleNamespace(
+                data=schema({"name": "Clean kitchen", "assignee_ids": [2, 3]})
+            )
+        )
+
+    assert client.payloads == []
+
+
+async def test_create_chore_service_reports_invalid_input_as_validation_error() -> None:
+    entry = FakeConfigEntry()
+    hass = FakeHass(entry)
+    await integration.async_setup_entry(hass, entry)
+    client = RecordingClient()
+    hass.data[integration.DOMAIN][entry.entry_id]["client"] = client
+    handler, schema = hass.services.registered[(integration.DOMAIN, "create_chore")]
+
+    with pytest.raises(ServiceValidationError, match="is_rolling requires"):
+        await handler(
+            SimpleNamespace(data=schema({"name": "Laundry", "is_rolling": True}))
+        )
+
+    assert client.payloads == []
+
+
+async def test_config_entry_lookup_ignores_foreign_todo_entities() -> None:
+    entry = FakeConfigEntry()
+    foreign = SimpleNamespace(entry_id="shopping-1", domain="shopping_list")
+    hass = FakeHass(entry, foreign)
+    hass.data[integration.DOMAIN] = {entry.entry_id: {}}
+    REGISTERED_ENTITIES["todo.shopping_list"] = SimpleNamespace(
+        platform="shopping_list", config_entry_id=foreign.entry_id
+    )
+    REGISTERED_ENTITIES["todo.all_tasks"] = SimpleNamespace(
+        platform="donetick", config_entry_id=entry.entry_id
+    )
+    try:
+        assert await integration._get_config_entry(hass, "todo.shopping_list") is None
+        assert await integration._get_config_entry(hass, "todo.all_tasks") is entry
+    finally:
+        REGISTERED_ENTITIES.clear()
