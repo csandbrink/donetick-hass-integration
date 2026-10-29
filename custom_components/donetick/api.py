@@ -3,7 +3,7 @@ import logging
 import asyncio
 from datetime import datetime, timezone
 import json
-from typing import List, Optional
+from typing import Any, List, Mapping, Optional, cast
 import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -20,12 +20,15 @@ class DonetickApiClient:
         self._token = token
         self._session = session
 
-    def _headers(self) -> dict:
+    def _headers(self, impersonate_user_id: int | None = None) -> dict:
         """Return headers for Donetick API requests."""
-        return {
+        headers = {
             "secretkey": f"{self._token}",
             "Content-Type": "application/json",
         }
+        if impersonate_user_id is not None:
+            headers["X-Impersonate-User-ID"] = str(impersonate_user_id)
+        return headers
 
     async def async_get_projects(self) -> List[DonetickProject]:
         """Get projects from Donetick."""
@@ -273,6 +276,48 @@ class DonetickApiClient:
             raise
         except (KeyError, ValueError, json.JSONDecodeError) as err:
             _LOGGER.error("Error parsing Donetick create task response: %s", err)
+            raise
+
+    async def async_create_chore(self, payload: Mapping[str, Any]) -> int:
+        """Create a chore through Donetick's full API and return its ID."""
+        try:
+            async with self._session.post(
+                f"{self._base_url}/api/v1/chores",
+                headers=self._headers(),
+                json=payload,
+                timeout=cast(Any, API_TIMEOUT),
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if not isinstance(data, dict):
+                    raise ValueError("Unexpected Donetick create chore response")
+                result = data.get("res")
+                if not isinstance(result, int) or isinstance(result, bool):
+                    raise ValueError("Unexpected Donetick create chore response")
+                return result
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Error creating chore in Donetick: %s", err)
+            raise
+        except (KeyError, TypeError, json.JSONDecodeError) as err:
+            _LOGGER.error("Error parsing Donetick create chore response: %s", err)
+            raise ValueError("Unexpected Donetick create chore response") from err
+
+    async def async_complete_chore(
+        self, chore_id: int, completed_by: int, assigned_to: int | None = None
+    ) -> None:
+        """Record a Full-API completion for a circle member."""
+        try:
+            async with self._session.post(
+                f"{self._base_url}/api/v1/chores/{chore_id}/do",
+                headers=self._headers(impersonate_user_id=assigned_to),
+                json={"completedBy": completed_by},
+                timeout=cast(Any, API_TIMEOUT),
+            ) as response:
+                # The response body is not needed; a non-JSON body after a
+                # successful completion must not be reported as a failure.
+                response.raise_for_status()
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Error completing chore in Donetick: %s", err)
             raise
 
     async def _raise_for_status(self, response, operation: str) -> None:
