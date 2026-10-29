@@ -9,10 +9,10 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from .const import (DOMAIN, CONF_URL, CONF_TOKEN, CONF_SHOW_DUE_IN, CONF_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL,
                     HISTORY_COMPLETED, HISTORY_PENDING_APPROVAL)
-from .api import DonetickApiClient
+from .api import DonetickApiClient, normalize_due_date
 from .user_mapping import completion_user
 from .frontend import async_setup_frontend
 from .completion_history import async_completed_occurrences
@@ -254,15 +254,18 @@ async def async_create_task_service(hass: HomeAssistant, call: ServiceCall) -> N
     """Handle the create_task service call."""
     name = call.data["name"]
     description = call.data.get("description")
-    due_date = call.data.get("due_date")
     created_by = call.data.get("created_by")
     config_entry_id = call.data.get("config_entry_id")
-    
+    try:
+        due_date = normalize_due_date(call.data.get("due_date"))
+    except ValueError as err:
+        raise ServiceValidationError(str(err)) from err
+
     # Find the config entry to use
     entry = await _get_config_entry(hass, config_entry_id)
     if not entry:
         return
-    
+
     # Get API client and coordinator
     config = hass.data[DOMAIN][entry.entry_id]
     client = config["client"]
