@@ -40,7 +40,7 @@ CREATE_TASK_SCHEMA = vol.Schema({
     vol.Required("name"): cv.string,
     vol.Optional("description"): cv.string,
     vol.Optional("due_date"): cv.string,
-    vol.Optional("created_by"): vol.Coerce(int),
+    vol.Optional("created_by"): vol.All(vol.Coerce(int), vol.Range(min=1)),
     vol.Optional("config_entry_id"): cv.string,
 })
 

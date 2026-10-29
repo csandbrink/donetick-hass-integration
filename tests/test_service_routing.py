@@ -50,6 +50,38 @@ class ServiceRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.hass.data[DOMAIN].clear()
         self.assertIsNone(await self.resolve(self.hass, "dev"))
 
+    def test_create_task_accepts_only_a_positive_created_by(self):
+        # voluptuous is not installed here, so the schema runs against the few validators it uses.
+        def coerce(kind):
+            return kind
+
+        def value_range(min=None):
+            def check(value):
+                if min is not None and value < min:
+                    raise ValueError(f"{value} is below {min}")
+                return value
+            return check
+
+        def all_of(*validators):
+            def check(value):
+                for validator in validators:
+                    value = validator(value)
+                return value
+            return check
+
+        vol = SimpleNamespace(Schema=lambda fields: fields, Optional=str, Required=str,
+                              Coerce=coerce, Range=value_range, All=all_of)
+        tree = ast.parse((COMPONENT / "__init__.py").read_text(encoding="utf-8"))
+        schema = next(node for node in tree.body if isinstance(node, ast.Assign)
+                      and getattr(node.targets[0], "id", None) == "CREATE_TASK_SCHEMA")
+        fields = eval(compile(ast.Expression(schema.value), "schema", "eval"),
+                      {"vol": vol, "cv": SimpleNamespace(string=str)})
+        created_by = fields["created_by"]
+        self.assertEqual(created_by("3"), 3)
+        for value in ("0", "-2"):
+            with self.assertRaises(ValueError):
+                created_by(value)
+
     def test_the_registry_helper_the_routing_uses_is_imported(self):
         # setUp supplies er itself, so only the module's imports show it is really there.
         tree = ast.parse((COMPONENT / "__init__.py").read_text(encoding="utf-8"))
