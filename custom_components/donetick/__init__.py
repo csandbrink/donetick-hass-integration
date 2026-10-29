@@ -323,12 +323,7 @@ async def async_complete_chore_service(hass: HomeAssistant, call: ServiceCall) -
     if not entry:
         raise HomeAssistantError("No matching Donetick config entry found")
 
-    try:
-        config = hass.data[DOMAIN][entry.entry_id]
-    except KeyError as err:
-        raise HomeAssistantError(
-            f"Donetick config entry {entry.entry_id} is not loaded"
-        ) from err
+    config = hass.data[DOMAIN][entry.entry_id]
 
     await _validate_circle_members(
         config,
@@ -388,12 +383,7 @@ async def async_create_chore_service(hass: HomeAssistant, call: ServiceCall) -> 
     if not entry:
         raise HomeAssistantError("No matching Donetick config entry found")
 
-    try:
-        config = hass.data[DOMAIN][entry.entry_id]
-    except KeyError as err:
-        raise HomeAssistantError(
-            f"Donetick config entry {entry.entry_id} is not loaded"
-        ) from err
+    config = hass.data[DOMAIN][entry.entry_id]
     client = config["client"]
     coordinator = config["coordinator"]
 
