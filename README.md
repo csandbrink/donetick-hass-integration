@@ -51,7 +51,7 @@ To reactivate an archived task with `donetick.update_task`, set `force_unarchive
 
 When calling `donetick.create_task`, set `created_by` to a Donetick circle member's user ID to create and assign the task to that member. Omitting it uses the API token owner. Tasks created from a member's todo list also belong to that member. The optional `due_date` is sent in RFC3339 format.
 
-To assign a task, call `donetick.update_task` with `task_id` and `assigned_to` set to a Donetick circle member's user ID, or `null` for Anyone. Selecting a member outside the task's assignee list adds them to that list while preserving the existing members and assignment strategy. This and switching to or from Anyone use Donetick's task editor and require permission to edit the task. Donetick remains authoritative on membership and private-project restrictions.
+To assign a task, call `donetick.update_task` with `task_id` and `assigned_to` set to a Donetick circle member's user ID, or `null` for Anyone. Selecting a member outside the task's assignee list adds them to that list while preserving the existing members and assignment strategy; a list with a single person is replaced by the new member instead, keeping its strategy. This and switching to or from Anyone use Donetick's task editor and require permission to edit the task. Donetick remains authoritative on membership and private-project restrictions.
 
 ## Installation
 
@@ -191,14 +191,15 @@ Views containing only one user's tasks omit the name. The setting depends on the
 useful even when the current filter happens to match only one user's tasks.
 **Allow reassignment** enables a user-switch icon on each row.
 Tap it to choose **Anyone** or a user, then confirm with the save icon; tap again to close.
-The picker includes Anyone even in a single-user circle. By default, user choices
-are active members already in the task's eligible assignee list. Tasks without an
-eligible list, including Anyone tasks, offer all active circle members.
-Enable **Allow assigning any circle member** under **Available actions**
-(`allow_any_assignee: true`) to also offer members outside an existing eligible list.
-This option is off by default. Selecting a new member adds them to the eligible list,
+The picker includes Anyone even in a single-user circle. User choices are all active
+circle members.
+The current assignee stays listed even after being deactivated.
+Turn off **Allow assigning any circle member** under **Available actions**
+(`allow_any_assignee: false`) to offer only members already in the task's eligible
+assignee list; tasks without an eligible list, including Anyone tasks, then still offer
+all active circle members. This option is on by default. Selecting a new member adds them to the eligible list,
 so they may receive future assignments. Existing members and the assignment strategy
-are retained. Selecting Anyone disables automatic user assignment;
+are retained. A list with a single person is replaced by the new member instead. Selecting Anyone disables automatic user assignment;
 selecting a user for an Anyone task keeps that user assigned on future occurrences.
 Switching to or from Anyone requires permission to edit the task. This uses `donetick.update_task`
 with `assigned_to`, preserves recurrence, and refreshes all lists. A reassigned task

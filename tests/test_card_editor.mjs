@@ -22,7 +22,7 @@ assert.match(form.computeHelper({name:'display_filters'}),/any selected group/);
 assert.equal(editorFields().find(field=>field.name==='display_filters').selector.select.multiple,true);
 assert.deepEqual(form.data.display_filters,[]);
 assert.equal(form.data.include_anyone,false);
-assert.equal(form.data.allow_any_assignee,false);
+assert.equal(form.data.allow_any_assignee,true);
 assert.ok(editorFields().find(field=>field.name==='allow_any_assignee').selector.boolean);
 assert.equal(form.computeLabel({name:'allow_any_assignee'}),'Allow assigning any circle member');
 assert.match(form.computeHelper({name:'allow_any_assignee'}),/adds them to that list.*future assignments/);
@@ -74,8 +74,8 @@ assert.equal(actions().some(group=>group.name==='reassign'),false);
 assert.equal(editorFields().some(field=>field.name==='allow_any_assignee'),false);
 update({user_id:'2',show_reassign:true});assert.equal(editorFields().some(field=>field.name==='show_assignee'),false);
 assert.ok(actions().find(group=>group.name==='reassign'));
-update({allow_any_assignee:true});assert.equal(latest.allow_any_assignee,true);
 update({allow_any_assignee:false});assert.equal(latest.allow_any_assignee,false);
+update({allow_any_assignee:true});assert.equal(latest.allow_any_assignee,true);
 assert.equal(latest.button_style,undefined); // Editing a user must not persist every displayed default.
 update({appearance_preset:'filled'});assert.equal(latest.button_style,'filled');assert.equal(latest.button_size,'normal');
 assert.equal(latest.sort_by,'priority');
