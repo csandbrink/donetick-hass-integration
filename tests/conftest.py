@@ -2,9 +2,12 @@
 
 import sys
 import types
+from collections.abc import Iterator
 from datetime import timezone
 from pathlib import Path
 from typing import Any, cast
+
+import pytest
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
@@ -122,8 +125,15 @@ class EntityRegistry:
         return REGISTERED_ENTITIES.get(entity_id)
 
 
-# Tests register entity registry entries here and must clean up after use.
+# Tests populate entity registry entries through the ``registered_entities``
+# fixture, which empties the mapping after every test.
 REGISTERED_ENTITIES: dict[str, Any] = {}
+
+
+@pytest.fixture(autouse=True)
+def registered_entities() -> Iterator[dict[str, Any]]:
+    yield REGISTERED_ENTITIES
+    REGISTERED_ENTITIES.clear()
 
 
 def _entity_registry_async_get(hass: Any) -> EntityRegistry:

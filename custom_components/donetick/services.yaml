@@ -167,13 +167,17 @@ create_chore:
         object:
     assignee_ids:
       name: Assignee User IDs
-      description: List of Donetick user IDs eligible for assignment
+      description: >-
+        List of Donetick user IDs eligible for assignment. Each ID must be an
+        active member of the circle; unknown IDs are rejected.
       required: false
       selector:
         object:
     assigned_to:
       name: Assigned To User ID
-      description: Donetick user ID currently assigned to the chore
+      description: >-
+        Donetick user ID currently assigned to the chore. Must be an active
+        member of the circle; unknown IDs are rejected.
       required: false
       selector:
         number:

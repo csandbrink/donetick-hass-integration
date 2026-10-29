@@ -126,6 +126,19 @@ async def test_complete_chore_omits_impersonation_without_assignee() -> None:
     }
 
 
+async def test_complete_chore_succeeds_on_non_json_body_without_reading_json() -> None:
+    response = FakeResponse(None, json_error=RuntimeError("invalid JSON"))
+    session = RecordingSession(response)
+    client = DonetickApiClient(
+        "https://donetick.example", "test-token", cast(Any, session)
+    )
+
+    await client.async_complete_chore(42, completed_by=7)
+
+    assert response.raise_for_status_called
+    assert not response.json_called
+
+
 @pytest.mark.parametrize("response_payload", [{}, {"res": "42"}, {"res": True}])
 async def test_create_chore_rejects_response_without_integer_id(
     response_payload: object,
