@@ -186,13 +186,13 @@ Views containing only one user's tasks omit the name. The setting depends on the
 useful even when the current filter happens to match only one user's tasks.
 **Allow reassignment** enables a user-switch icon on each row.
 Tap it to choose **Anyone** or a user, then confirm with the save icon; tap again to close.
-The picker includes Anyone even in a single-user circle. By default, user choices
-are active members already in the task's eligible assignee list. Tasks without an
-eligible list, including Anyone tasks, offer all active circle members.
+The picker includes Anyone even in a single-user circle. User choices are all active
+circle members.
 The current assignee stays listed even after being deactivated.
-Enable **Allow assigning any circle member** under **Available actions**
-(`allow_any_assignee: true`) to also offer members outside an existing eligible list.
-This option is off by default. Selecting a new member adds them to the eligible list,
+Turn off **Allow assigning any circle member** under **Available actions**
+(`allow_any_assignee: false`) to offer only members already in the task's eligible
+assignee list; tasks without an eligible list, including Anyone tasks, then still offer
+all active circle members. This option is on by default. Selecting a new member adds them to the eligible list,
 so they may receive future assignments. Existing members and the assignment strategy
 are retained. A list with a single person is replaced by the new member instead. Selecting Anyone disables automatic user assignment;
 selecting a user for an Anyone task keeps that user assigned on future occurrences.

@@ -235,7 +235,7 @@ class DonetickUserTodoCard extends HTMLElement {
     if (config.row_spacing !== undefined && !['auto','compact','comfortable'].includes(config.row_spacing)) throw new Error('Choose valid task spacing');
     if (config.upcoming_days !== undefined && (!Number.isInteger(Number(config.upcoming_days)) || Number(config.upcoming_days) < 0 || Number(config.upcoming_days) > 365)) throw new Error('Days ahead must be a whole number from 0 to 365');
     this._config = {task_view:'both', completed_days:1, completed_filter:'all', completed_limit:0, row_spacing:'auto', display_filter:'all', sort_by:'due_date', button_style: 'text', button_size: 'compact', button_shape: 'rounded',
-      button_content: 'icon', complete_control: 'checkbox', include_overdue:true, include_anyone:false, due_display:'date', show_labels:false, show_points:false, show_recurrence:false, use_label_colors:false, show_assignee:true, show_complete:true, show_postpone:true, show_due_date:true, show_reassign:true, allow_any_assignee:false, ...config, completed_days:config.completed_days ?? 1, completed_limit:config.completed_limit ?? 0, labels:taskLabels(config.labels), user_id: config.user_id === undefined || config.user_id === 'all' ? 'all' : Number(config.user_id), upcoming_days:upcomingDayLimit(config.upcoming_days)};
+      button_content: 'icon', complete_control: 'checkbox', include_overdue:true, include_anyone:false, due_display:'date', show_labels:false, show_points:false, show_recurrence:false, use_label_colors:false, show_assignee:true, show_complete:true, show_postpone:true, show_due_date:true, show_reassign:true, allow_any_assignee:true, ...config, completed_days:config.completed_days ?? 1, completed_limit:config.completed_limit ?? 0, labels:taskLabels(config.labels), user_id: config.user_id === undefined || config.user_id === 'all' ? 'all' : Number(config.user_id), upcoming_days:upcomingDayLimit(config.upcoming_days)};
     if (this._panel && this._panel.kind !== 'details' && !this._config[{skip:'show_postpone',date:'show_due_date',assign:'show_reassign'}[this._panel.kind]]) this._panel = null;
     this._configInputSignature = signature;
     this.render();
@@ -618,7 +618,7 @@ const EDITOR_DEFAULTS = {
   task_view:'both',
   completed_days:1, completed_filter:'all', completed_limit:0,
   row_spacing:'auto',
-  display_filters:[], label_match:'any', sort_by:'due_date', upcoming_days:7, include_anyone:false, due_display:'date', show_labels:false, show_points:false, show_recurrence:false, use_label_colors:false, show_assignee:true, show_complete:true, show_postpone:true, show_due_date:true, show_reassign:true, allow_any_assignee:false, complete_control:'checkbox', button_style:'text', button_size:'compact',
+  display_filters:[], label_match:'any', sort_by:'due_date', upcoming_days:7, include_anyone:false, due_display:'date', show_labels:false, show_points:false, show_recurrence:false, use_label_colors:false, show_assignee:true, show_complete:true, show_postpone:true, show_due_date:true, show_reassign:true, allow_any_assignee:true, complete_control:'checkbox', button_style:'text', button_size:'compact',
   button_shape:'rounded', button_content:'icon', complete_label:'Complete', postpone_label:'Skip occurrence',
   due_date_label:'Change due date', complete_icon:'mdi:check', postpone_icon:'mdi:calendar-arrow-right',
   due_date_icon:'mdi:calendar-edit', reassign_label:'Reassign', reassign_icon:'mdi:account-switch-outline', complete_color:'primary', postpone_color:'primary', due_date_color:'primary', reassign_color:'primary'
@@ -647,7 +647,7 @@ const EDITOR_HELP = {
   user_id:'Show one user’s tasks or all users. By default, completion credits the current assignee, or the API token owner for Anyone tasks. Optional HA user mapping in the integration settings can override this.',
   include_anyone:'Show Anyone tasks alongside the selected user’s tasks, using the same date filters and sorting.',
   show_assignee:'Show the assigned name beside the due date. Available when the list can contain multiple users.',
-  allow_any_assignee:'Off by default. Selecting someone outside a task’s eligible assignees adds them to that list, or replaces the only person on it. Added members may receive future assignments under the existing rotation strategy. Requires permission to edit the task.',
+  allow_any_assignee:'On by default; turn off to offer only a task’s eligible assignees. Selecting someone outside a task’s eligible assignees adds them to that list, or replaces the only person on it. Added members may receive future assignments under the existing rotation strategy. Requires permission to edit the task.',
   show_reassign:'Show a user-switch action on each row. Changes are saved only after confirmation.',
   show_complete:'Show the completion checkbox or button. Turn off for a display-only task list.',
   show_postpone:'Show Skip occurrence for tasks with a recurring schedule.',

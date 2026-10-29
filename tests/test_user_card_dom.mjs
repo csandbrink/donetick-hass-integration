@@ -269,7 +269,8 @@ assert.equal(root.querySelector('select').value,'1');
 hass.themes={darkMode:false};card.hass=hass;
 assert.equal(root.querySelector('select').style.colorScheme,'light');
 assert.equal(root.querySelector('.save-action').disabled,true);
-assert.deepEqual([...root.querySelector('select').options].map(option=>option.value),['anyone','1','2']);
+// Without the option set, every active member is offered, not only the eligible list.
+assert.deepEqual([...root.querySelector('select').options].map(option=>option.value),['anyone','1','2','3']);
 click('Reassign: Weekly');assert.equal(root.querySelector('form'),null);
 click('Reassign: Weekly');
 let assignee=root.querySelector('select');assignee.value='2';assignee.dispatchEvent(new window.Event('change'));
