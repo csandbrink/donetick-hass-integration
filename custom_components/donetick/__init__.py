@@ -13,6 +13,11 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import (DOMAIN, CONF_URL, CONF_TOKEN, CONF_SHOW_DUE_IN, CONF_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL,
                     HISTORY_COMPLETED, HISTORY_PENDING_APPROVAL)
 from .api import DonetickApiClient
+from .chore_payload import (
+    ASSIGNMENT_STRATEGIES,
+    FREQUENCY_TYPES,
+    build_create_chore_payload,
+)
 from .user_mapping import completion_user
 from .frontend import async_setup_frontend
 from .completion_history import async_completed_occurrences
@@ -23,6 +28,7 @@ PLATFORMS = [Platform.TODO, Platform.SENSOR, Platform.SWITCH, Platform.NUMBER, P
 
 SERVICE_COMPLETE_TASK = "complete_task"
 SERVICE_CREATE_TASK = "create_task"
+SERVICE_CREATE_CHORE = "create_chore"
 SERVICE_UPDATE_TASK = "update_task"
 SERVICE_DELETE_TASK = "delete_task"
 SERVICE_SKIP_TASK = "skip_task"
@@ -41,6 +47,26 @@ CREATE_TASK_SCHEMA = vol.Schema({
     vol.Optional("description"): cv.string,
     vol.Optional("due_date"): cv.string,
     vol.Optional("created_by"): vol.Coerce(int),
+    vol.Optional("config_entry_id"): cv.string,
+})
+
+CREATE_CHORE_SCHEMA = vol.Schema({
+    vol.Required("name"): vol.All(cv.string, vol.Length(min=1)),
+    vol.Optional("description"): cv.string,
+    vol.Optional("next_due_date"): cv.string,
+    vol.Optional("frequency_type", default="once"): vol.In(FREQUENCY_TYPES),
+    vol.Optional("frequency", default=1): vol.All(
+        vol.Coerce(int), vol.Range(min=1)
+    ),
+    vol.Optional("frequency_metadata"): dict,
+    vol.Optional("assignee_ids"): vol.All(
+        cv.ensure_list,
+        [vol.All(vol.Coerce(int), vol.Range(min=1))],
+    ),
+    vol.Optional("assigned_to"): vol.All(vol.Coerce(int), vol.Range(min=1)),
+    vol.Optional("assign_strategy"): vol.In(ASSIGNMENT_STRATEGIES),
+    vol.Optional("priority", default=0): vol.Coerce(int),
+    vol.Optional("is_rolling"): bool,
     vol.Optional("config_entry_id"): cv.string,
 })
 
@@ -130,6 +156,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     async def create_task_handler(call: ServiceCall) -> None:
         await async_create_task_service(hass, call)
+
+    async def create_chore_handler(call: ServiceCall) -> None:
+        await async_create_chore_service(hass, call)
     
     async def update_task_handler(call: ServiceCall) -> None:
         await async_update_task_service(hass, call)
@@ -155,6 +184,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         SERVICE_CREATE_TASK,
         create_task_handler,
         schema=CREATE_TASK_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_CHORE,
+        create_chore_handler,
+        schema=CREATE_CHORE_SCHEMA,
     )
     hass.services.async_register(
         DOMAIN,
@@ -275,6 +310,42 @@ async def async_create_task_service(hass: HomeAssistant, call: ServiceCall) -> N
 
     except Exception as e:
         _LOGGER.error("Failed to create task '%s': %s", name, e)
+
+
+async def async_create_chore_service(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Create a chore through Donetick's full API."""
+    config_entry_id = call.data.get("config_entry_id")
+    entry = await _get_config_entry(hass, config_entry_id)
+    if not entry:
+        raise HomeAssistantError("No matching Donetick config entry found")
+
+    try:
+        config = hass.data[DOMAIN][entry.entry_id]
+    except KeyError as err:
+        raise HomeAssistantError(
+            f"Donetick config entry {entry.entry_id} is not loaded"
+        ) from err
+    client = config["client"]
+    coordinator = config["coordinator"]
+
+    try:
+        payload = build_create_chore_payload(call.data)
+        chore_id = await client.async_create_chore(payload)
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to create Donetick chore: {err}") from err
+
+    try:
+        await coordinator.async_request_refresh()
+    except Exception as err:
+        raise HomeAssistantError(
+            f"Donetick chore was created with ID {chore_id}, "
+            f"but Home Assistant refresh failed: {err}"
+        ) from err
+
+    _LOGGER.info(
+        "Chore '%s' created successfully with ID %d", payload["name"], chore_id
+    )
+
 
 async def async_update_task_service(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle the update_task service call."""
@@ -459,12 +530,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
         # Remove services if this is the last config entry
         if not hass.data[DOMAIN]:
-            for service_name in [SERVICE_COMPLETE_TASK, SERVICE_CREATE_TASK, SERVICE_UPDATE_TASK, SERVICE_DELETE_TASK, SERVICE_SKIP_TASK, SERVICE_COMPLETE_ASSIGNED_TASK, SERVICE_POSTPONE_TASK, SERVICE_DELETE_HISTORY]:
+            service_names = (
+                SERVICE_COMPLETE_TASK,
+                SERVICE_CREATE_TASK,
+                SERVICE_CREATE_CHORE,
+                SERVICE_UPDATE_TASK,
+                SERVICE_DELETE_TASK,
+                SERVICE_SKIP_TASK,
+                SERVICE_COMPLETE_ASSIGNED_TASK,
+                SERVICE_POSTPONE_TASK,
+                SERVICE_DELETE_HISTORY,
+            )
+            for service_name in service_names:
                 if hass.services.has_service(DOMAIN, service_name):
                     hass.services.async_remove(DOMAIN, service_name)
-            _LOGGER.debug("Removed services: %s.%s, %s.%s, %s.%s, %s.%s", 
-                          DOMAIN, SERVICE_COMPLETE_TASK, DOMAIN, SERVICE_CREATE_TASK, 
-                          DOMAIN, SERVICE_UPDATE_TASK, DOMAIN, SERVICE_DELETE_TASK)
+            _LOGGER.debug("Removed all Donetick services")
     
     return unload_ok
 
