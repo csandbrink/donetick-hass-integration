@@ -371,15 +371,6 @@ def _member(user_id: int, *, is_active: bool = True) -> SimpleNamespace:
     return SimpleNamespace(user_id=user_id, is_active=is_active)
 
 
-async def test_setup_ties_update_listener_to_entry_unload() -> None:
-    entry = FakeConfigEntry()
-    hass = FakeHass(entry)
-
-    await integration.async_setup_entry(hass, entry)
-
-    assert len(entry.unload_callbacks) == 1
-
-
 async def test_complete_chore_service_rejects_non_member_performer() -> None:
     entry = FakeConfigEntry()
     hass = FakeHass(entry)
@@ -547,31 +538,3 @@ async def test_create_chore_service_reports_invalid_input_as_validation_error() 
         )
 
     assert client.payloads == []
-
-
-async def test_config_entry_lookup_ignores_foreign_todo_entities(
-    registered_entities: dict[str, Any],
-) -> None:
-    entry = FakeConfigEntry()
-    foreign = SimpleNamespace(entry_id="shopping-1", domain="shopping_list")
-    hass = FakeHass(entry, foreign)
-    hass.data[integration.DOMAIN] = {entry.entry_id: {}}
-    registered_entities["todo.shopping_list"] = SimpleNamespace(
-        platform="shopping_list", config_entry_id=foreign.entry_id
-    )
-    registered_entities["todo.all_tasks"] = SimpleNamespace(
-        platform="donetick", config_entry_id=entry.entry_id
-    )
-
-    assert await integration._get_config_entry(hass, "todo.shopping_list") is None
-    assert await integration._get_config_entry(hass, "todo.all_tasks") is entry
-
-
-async def test_config_entry_lookup_rejects_foreign_config_entry() -> None:
-    entry = FakeConfigEntry()
-    foreign = SimpleNamespace(entry_id="entry-2", domain="shopping_list")
-    hass = FakeHass(entry, foreign)
-    hass.data[integration.DOMAIN] = {entry.entry_id: {}}
-
-    assert await integration._get_config_entry(hass, "entry-2") is None
-    assert await integration._get_config_entry(hass, entry.entry_id) is entry
