@@ -8,14 +8,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-integration:
+  test:
+    runs-on: "ubuntu-24.04"
+    steps:
+      - name: Check out repository
+        uses: "actions/checkout@11d5960a326750d5838078e36cf38b85af677262" # v4
+      - name: Install uv
+        uses: "astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e" # v6
+        with:
+          enable-cache: true
+      - name: Install Python
+        run: "uv python install 3.11.15"
+      - name: Install dependencies
+        run: "uv sync --frozen --dev --python 3.11.15"
+      - name: Run tests
+        run: "uv run --frozen pytest"
+
+  test-card:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: python -m unittest discover -s tests -v
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
