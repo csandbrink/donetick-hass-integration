@@ -137,3 +137,14 @@ def test_build_create_chore_payload_requires_rfc3339_due_date(
         build_create_chore_payload(
             {"name": "Clean kitchen", "next_due_date": next_due_date}
         )
+
+
+def test_rejects_blank_name() -> None:
+    with pytest.raises(ValueError, match="name must not be blank"):
+        build_create_chore_payload({"name": "   "})
+
+
+def test_deduplicates_assignee_ids() -> None:
+    payload = build_create_chore_payload({"name": "Dishes", "assignee_ids": [2, 3, 2]})
+
+    assert payload["assignees"] == [{"userId": 2}, {"userId": 3}]
