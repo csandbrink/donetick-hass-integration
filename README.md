@@ -5,6 +5,9 @@
 
 A Home Assistant integration for Donetick that provides support for managing todo lists and controlling "things" as Home Assistant entities.
 
+> [!NOTE]
+> The full-API services `donetick.create_chore` and `donetick.complete_chore` need Donetick server version **0.1.79** or newer.
+
 ## Features
 
 ### 📋 Todo Lists
@@ -31,6 +34,7 @@ Points preserve an explicit zero; tasks without a point value expose `null`.
 ### 🔧 Services
 - `donetick.create_task` - Create new tasks
 - `donetick.create_chore` - Create chores through the full API with recurrence, assignment strategy, and priority
+- `donetick.complete_chore` - Complete a chore through the full API and record the circle member who did it. The configured API token must belong to a circle admin or manager when recording a different member.
 - `donetick.update_task` - Update existing tasks
 - `donetick.delete_task` - Delete tasks
 - `donetick.complete_task` - Mark tasks complete with user attribution
